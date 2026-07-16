@@ -14,6 +14,7 @@ Environment:
 	HEADS_MAINTAINER_DOCKER_IMAGE=...  Override base repository
 	DOCKER_REPRO_DIGEST=...            Pin to a specific digest (sha256:...)
 	HEADS_DISABLE_USB=1                Disable USB passthrough
+	HEADS_DOCKER_READONLY_MOUNTS=...   Add SOURCE=TARGET read-only inputs
 	HEADS_X11_XAUTH=1                  Force mounting ~/.Xauthority
 
 Examples:

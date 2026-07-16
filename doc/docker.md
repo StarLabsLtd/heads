@@ -156,6 +156,16 @@ HEADS_CHECK_REPRODUCIBILITY=1 ./docker_local_dev.sh
 **`HEADS_DISABLE_USB=1`** — disable automatic USB passthrough and the automatic USB
 cleanup (default: `0`).
 
+**`HEADS_DOCKER_READONLY_MOUNTS`** - add explicit read-only inputs to the
+container. Use `SOURCE=TARGET`, with multiple mappings separated by semicolons.
+Both paths should be absolute. This is intended for licensed board inputs that
+cannot be distributed in Heads:
+
+```bash
+HEADS_DOCKER_READONLY_MOUNTS="/host/vendor=$(pwd)/build/x86/vendor" \
+  ./docker_repro.sh make BOARD=example
+```
+
 **`HEADS_X11_XAUTH=1`** — force mounting your `${HOME}/.Xauthority` into the container
 for X11 authentication. When set the helper will bypass programmatic Xauthority generation
 and mount your `${HOME}/.Xauthority` (if present); if the file is missing the helper will
