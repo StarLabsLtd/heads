@@ -1,0 +1,21 @@
+ifeq "$(CONFIG_STARLABS_AMD_BINARIES)" "y"
+
+# Current Cezanne release inputs are maintained outside coreboot. They are
+# mounted read-only at this path and verified before configure and build.
+STARLABS_AMD_BINARIES_DIR ?= $(build)/amd_binaries
+STARLABS_AMD_BINARIES_MANIFEST := $(pwd)/config/starlabs-amd-binaries.sha256
+
+.PHONY: starlabs-amd-binaries.verify
+starlabs-amd-binaries.verify:
+	@test -d "$(STARLABS_AMD_BINARIES_DIR)" || { \
+		echo "Missing Star Labs AMD binaries: $(STARLABS_AMD_BINARIES_DIR)" >&2; \
+		echo "Mount the maintained tree read-only as documented in doc/starlabs.md" >&2; \
+		exit 1; \
+	}
+	@cd "$(STARLABS_AMD_BINARIES_DIR)" && \
+		sha256sum --check --strict "$(STARLABS_AMD_BINARIES_MANIFEST)"
+
+$(build)/$(coreboot_dir)/.configured: | starlabs-amd-binaries.verify
+$(build)/$(coreboot_dir)/.build: | starlabs-amd-binaries.verify
+
+endif
