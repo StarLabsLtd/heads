@@ -6,7 +6,7 @@ configurations current in release 26.07. StarBook MTL is the proof board and
 
 ## Pinned sources
 
-- Heads base: `8d0064fdcdf4d63fee8e51072bdd8d974a763e58`
+- Heads base: `548526df0f5fa9616d882ff2932ced08b88d04aa`
 - Reproducible container: `tlaurion/heads-dev-env@sha256:96f8f91c6464305c4a990d59f9ef93910c16c7fd0501a46b43b34a4600a368de`
 - Star Labs coreboot: `https://github.com/StarLabsLtd/coreboot.git` at
   `3531cde8002a9afff8ad4c272b2c4ea015f45012` (`release_26.07_1`)
