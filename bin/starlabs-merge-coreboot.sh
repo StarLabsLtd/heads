@@ -11,8 +11,11 @@ Copy only the FMAP COREBOOT region from a Heads image into a full-chip,
 per-unit reference backup. All bytes outside COREBOOT must remain identical.
 
 Options:
-  --cbfstool PATH  cbfstool binary (default: cbfstool)
-  --force          replace an existing output file
+  --migrate-cezanne-2607
+                   replace the old 26.07 Cezanne FMAP/COREBOOT tail with the
+                   PSP_NVRAM-aware Heads tail; external programming only
+  --cbfstool PATH   cbfstool binary (default: cbfstool)
+  --force           replace an existing output file
 USAGE
 }
 
@@ -21,12 +24,14 @@ HEADS_ROM=
 OUTPUT=
 CBFSTOOL=cbfstool
 FORCE=0
+MIGRATE_CEZANNE_2607=0
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 		--reference) REFERENCE=$2; shift 2 ;;
 		--heads) HEADS_ROM=$2; shift 2 ;;
 		--output) OUTPUT=$2; shift 2 ;;
+		--migrate-cezanne-2607) MIGRATE_CEZANNE_2607=1; shift ;;
 		--cbfstool) CBFSTOOL=$2; shift 2 ;;
 		--force) FORCE=1; shift ;;
 		-h|--help) usage; exit 0 ;;
@@ -59,6 +64,100 @@ heads_size=$(stat -c '%s' "$HEADS_ROM")
 if [ "$reference_size" -ne "$heads_size" ]; then
 	echo "Image size mismatch: reference=$reference_size heads=$heads_size" >&2
 	exit 1
+fi
+
+canonical_layout() {
+	"$CBFSTOOL" "$1" layout -w | sed -n \
+		"s/^'\([^']*\)'.*size \([0-9][0-9]*\), offset \([0-9][0-9]*\).*/\1 \3 \2/p"
+}
+
+require_layout() {
+	local image=$1
+	local expected=$2
+	local description=$3
+	local actual
+
+	actual=$(canonical_layout "$image")
+	if [ "$actual" != "$expected" ]; then
+		echo "$description layout mismatch: $image" >&2
+		diff -u <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") >&2 || true
+		exit 1
+	fi
+}
+
+if [ "$MIGRATE_CEZANNE_2607" -eq 1 ]; then
+	image_size=$((16 * 1024 * 1024))
+	migration_offset=$((0xd0000))
+	psp_nvram_size=$((0x20000))
+	block_size=4096
+
+	if [ "$reference_size" -ne "$image_size" ]; then
+		echo "Cezanne migration requires two 16 MiB images" >&2
+		exit 1
+	fi
+
+	old_layout=$(cat <<'EOF'
+SI_ALL 0 16777216
+EC 0 131072
+RW_MRC_CACHE 131072 65536
+SMMSTORE 196608 524288
+CONSOLE 720896 131072
+FMAP 851968 4096
+COREBOOT 856064 15921152
+EOF
+	)
+	new_layout=$(cat <<'EOF'
+SI_ALL 0 16777216
+EC 0 131072
+RW_MRC_CACHE 131072 65536
+SMMSTORE 196608 524288
+CONSOLE 720896 131072
+PSP_NVRAM 851968 131072
+FMAP 983040 4096
+COREBOOT 987136 15790080
+EOF
+	)
+	require_layout "$REFERENCE" "$old_layout" "26.07 Cezanne reference"
+	require_layout "$HEADS_ROM" "$new_layout" "PSP_NVRAM-aware Heads"
+
+	tmpdir=$(mktemp -d)
+	trap 'rm -rf "$tmpdir"' EXIT
+	psp_nvram="$tmpdir/PSP_NVRAM.bin"
+	erased_nvram="$tmpdir/PSP_NVRAM.erased.bin"
+	dd if="$HEADS_ROM" of="$psp_nvram" bs="$block_size" \
+		skip=$((migration_offset / block_size)) \
+		count=$((psp_nvram_size / block_size)) status=none
+	dd if=/dev/zero bs="$block_size" count=$((psp_nvram_size / block_size)) status=none |
+		tr '\000' '\377' > "$erased_nvram"
+	if ! cmp -s "$psp_nvram" "$erased_nvram"; then
+		echo "Heads PSP_NVRAM must be erased (all 0xff) for first transition" >&2
+		exit 1
+	fi
+
+	cp "$REFERENCE" "$OUTPUT"
+	dd if="$HEADS_ROM" of="$OUTPUT" bs="$block_size" \
+		skip=$((migration_offset / block_size)) \
+		seek=$((migration_offset / block_size)) \
+		count=$(((image_size - migration_offset) / block_size)) \
+		conv=notrunc status=none
+
+	cmp -n "$migration_offset" "$REFERENCE" "$OUTPUT"
+	cmp \
+		<(dd if="$HEADS_ROM" bs="$block_size" skip=$((migration_offset / block_size)) status=none) \
+		<(dd if="$OUTPUT" bs="$block_size" skip=$((migration_offset / block_size)) status=none)
+	require_layout "$OUTPUT" "$new_layout" "Migrated Cezanne output"
+
+	echo "Migrated Cezanne 26.07 full image at offset=$migration_offset"
+	printf 'Reference SHA256: '
+	sha256sum "$REFERENCE" | awk '{print $1}'
+	printf 'Heads SHA256: '
+	sha256sum "$HEADS_ROM" | awk '{print $1}'
+	printf 'Output SHA256: '
+	sha256sum "$OUTPUT" | awk '{print $1}'
+	echo "Verified: EC, MRC cache, SMMSTORE, and console remain per-unit;"
+	echo "PSP_NVRAM is erased and the new FMAP/COREBOOT tail is installed."
+	echo "This first-transition image requires an external full-chip programmer."
+	exit 0
 fi
 
 layout_tuple() {

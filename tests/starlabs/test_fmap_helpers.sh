@@ -15,15 +15,44 @@ cat > "$fake_cbfstool" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
+image=$1
 shift
 command=$1
 shift
 case "$command" in
 	layout)
-		cat <<'LAYOUT'
+		if [ "${FAKE_MIGRATION:-0}" = 1 ]; then
+			case "$(basename "$image")" in
+				reference.rom)
+					cat <<'LAYOUT'
+'SI_ALL' (read-only, size 16777216, offset 0)
+'EC' (size 131072, offset 0)
+'RW_MRC_CACHE' (size 65536, offset 131072)
+'SMMSTORE' (size 524288, offset 196608)
+'CONSOLE' (size 131072, offset 720896)
+'FMAP' (read-only, size 4096, offset 851968)
+'COREBOOT' (CBFS, size 15921152, offset 856064)
+LAYOUT
+					;;
+				*)
+					cat <<'LAYOUT'
+'SI_ALL' (read-only, size 16777216, offset 0)
+'EC' (size 131072, offset 0)
+'RW_MRC_CACHE' (size 65536, offset 131072)
+'SMMSTORE' (size 524288, offset 196608)
+'CONSOLE' (size 131072, offset 720896)
+'PSP_NVRAM' (preserve, size 131072, offset 851968)
+'FMAP' (read-only, size 4096, offset 983040)
+'COREBOOT' (CBFS, size 15790080, offset 987136)
+LAYOUT
+					;;
+			esac
+		else
+			cat <<'LAYOUT'
 '../../outside' (size 1, offset 0)
 'COREBOOT' (CBFS, size 1, offset 1)
 LAYOUT
+		fi
 		;;
 	read)
 		output=
@@ -103,5 +132,36 @@ if "$merge" \
 	exit 1
 fi
 [ "$(sha256sum "$heads")" = "$heads_hash" ]
+
+truncate -s 16777216 "$reference"
+truncate -s 16777216 "$heads"
+printf 'per-unit-reference' | dd of="$reference" conv=notrunc status=none
+printf 'heads-coreboot-tail' | dd of="$heads" bs=1 seek=987136 conv=notrunc status=none
+dd if=/dev/zero bs=4096 count=32 status=none |
+	tr '\000' '\377' |
+	dd of="$heads" bs=4096 seek=208 conv=notrunc status=none
+
+migrated="$tmpdir/migrated.rom"
+FAKE_MIGRATION=1 "$merge" \
+	--migrate-cezanne-2607 \
+	--reference "$reference" \
+	--heads "$heads" \
+	--output "$migrated" \
+	--cbfstool "$fake_cbfstool" >/dev/null
+cmp -n 851968 "$reference" "$migrated"
+cmp \
+	<(dd if="$heads" bs=4096 skip=208 status=none) \
+	<(dd if="$migrated" bs=4096 skip=208 status=none)
+
+printf '\000' | dd of="$heads" bs=1 seek=$((0xd0000 + 17)) conv=notrunc status=none
+if FAKE_MIGRATION=1 "$merge" \
+	--migrate-cezanne-2607 \
+	--reference "$reference" \
+	--heads "$heads" \
+	--output "$tmpdir/rejected.rom" \
+	--cbfstool "$fake_cbfstool" >/dev/null 2>&1; then
+	echo "Cezanne migration accepted initialized PSP_NVRAM data" >&2
+	exit 1
+fi
 
 echo "Star Labs FMAP helper tests passed"

@@ -91,11 +91,34 @@ Before a first boot on hardware:
 2. Audit the backup and Heads ROM with `bin/starlabs-fmap-audit.sh`, including
    the correct `--expected-size` and Intel `--ifd-platform` where applicable.
 3. Use `bin/starlabs-merge-coreboot.sh` to copy only Heads `COREBOOT` into a
-   copy of the per-unit backup.
+   copy of the per-unit backup when both images have an identical FMAP.
 4. Audit the merged image again. The merge tool must report that every byte
    outside `COREBOOT` is identical to the backup.
 5. Do not flash until the board is locally recoverable with that programmer,
    or the hardware owner has explicitly made recovery available.
+
+The Cezanne 26.07.1 release has no `PSP_NVRAM` region. Its first transition
+to this Heads layout is therefore an explicit exception to the identical-FMAP
+rule:
+
+```sh
+bin/starlabs-merge-coreboot.sh \
+  --migrate-cezanne-2607 \
+  --reference unit-backup.rom \
+  --heads heads-cezanne.rom \
+  --output first-transition.rom \
+  --cbfstool /path/to/cbfstool
+```
+
+That mode accepts only the exact old and new 16 MiB layouts. It preserves the
+per-unit `EC`, `RW_MRC_CACHE`, `SMMSTORE`, and `CONSOLE` bytes below
+`0xd0000`; requires the new `PSP_NVRAM` bytes at `0xd0000`-`0xeffff` to be
+erased; and replaces the complete tail from `0xd0000` with the new FMAP and
+`COREBOOT`. The result is a full-chip first-transition image and must be
+written externally after the two-read recovery gate. Internal `COREBOOT`-only
+updates are valid only after the unit already has the new layout. The current
+Cezanne images do not yet fit, so this procedure prepares the migration path
+but does not authorize a candidate flash.
 
 For StarBook MTL the full image is `0x2000000` bytes. Its release layout is:
 
@@ -167,5 +190,5 @@ KBL/GLK capacity blockers have a viable architecture.
 
 The two Cezanne targets must also fit without removing verified boot, TPM2,
 display, USB recovery, or kexec functionality before allocating either AMD
-system. The exact deficits are 420,188 bytes for Byte Cezanne and 423,708 bytes
+system. The exact deficits are 549,660 bytes for Byte Cezanne and 556,828 bytes
 for StarBook Cezanne.
