@@ -57,13 +57,18 @@ CONFIG
 LAYOUT
 					;;
 				*)
-					cat <<'LAYOUT'
+					if [ "${FAKE_NO_PRESERVE:-0}" = 1 ]; then
+						psp_attributes=
+					else
+						psp_attributes='preserve, '
+					fi
+					cat <<LAYOUT
 'SI_ALL' (read-only, size 16777216, offset 0)
 'EC' (size 131072, offset 0)
 'RW_MRC_CACHE' (size 65536, offset 131072)
 'SMMSTORE' (size 524288, offset 196608)
 'CONSOLE' (size 131072, offset 720896)
-'PSP_NVRAM' (preserve, size 131072, offset 851968)
+'PSP_NVRAM' (${psp_attributes}size 131072, offset 851968)
 'FMAP' (read-only, size 4096, offset 983040)
 'COREBOOT' (CBFS, size 15790080, offset 987136)
 LAYOUT
@@ -170,6 +175,17 @@ if FAKE_BOARD_MISMATCH=1 "$merge" \
 	exit 1
 fi
 [ ! -e "$tmpdir/wrong-board.rom" ]
+
+if FAKE_MIGRATION=1 FAKE_NO_PRESERVE=1 "$merge" \
+	--migrate-cezanne-2607 \
+	--reference "$reference" \
+	--heads "$heads" \
+	--output "$tmpdir/no-preserve.rom" \
+	--cbfstool "$fake_cbfstool" >/dev/null 2>&1; then
+	echo "Cezanne migration accepted PSP_NVRAM without preserve policy" >&2
+	exit 1
+fi
+[ ! -e "$tmpdir/no-preserve.rom" ]
 
 dd if=/dev/zero bs=4096 count=32 status=none |
 	tr '\000' '\377' |

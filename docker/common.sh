@@ -1036,13 +1036,16 @@ build_docker_opts() {
 		for mount in "${readonly_mounts[@]}"; do
 			case "$mount" in
 				*=*) ;;
-				*) echo "Invalid HEADS_DOCKER_READONLY_MOUNTS entry: $mount" >&2; continue ;;
+				*)
+					echo "Invalid HEADS_DOCKER_READONLY_MOUNTS entry: $mount" >&2
+					return 1
+					;;
 			esac
 			source=${mount%%=*}
 			target=${mount#*=}
 			if [ -z "$source" ] || [ -z "$target" ]; then
 				echo "Invalid HEADS_DOCKER_READONLY_MOUNTS entry: $mount" >&2
-				continue
+				return 1
 			fi
 			opts+=(--mount "type=bind,src=${source},dst=${target},readonly")
 			echo "--->Read-only input mount: ${source} -> ${target}" >&2
@@ -1444,9 +1447,11 @@ run_docker() {
 	shift
 	local opts host_workdir container_workdir DOCKER_OPTS_ARRAY
 	# Read docker options (one-per-line) into an array, preserving spaces within options
-	mapfile -t DOCKER_OPTS_ARRAY < <(build_docker_opts)
-	# Also create a single-string representation for legacy substring checks
-	opts=$(printf '%s\n' "${DOCKER_OPTS_ARRAY[@]}")
+	if ! opts=$(build_docker_opts); then
+		echo "Refusing to start Docker with invalid options" >&2
+		return 1
+	fi
+	mapfile -t DOCKER_OPTS_ARRAY <<<"$opts"
 	host_workdir="$(pwd)"
 	container_workdir="${host_workdir}"
 

@@ -123,6 +123,19 @@ require_layout() {
 	fi
 }
 
+require_preserve_region() {
+	local image=$1
+	local region=$2
+	local size=$3
+	local offset=$4
+
+	if ! "$CBFSTOOL" "$image" layout -w | grep -Eq \
+		"^'${region}' \\(preserve, size ${size}, offset ${offset}\\)$"; then
+		echo "$region is not marked preserve: $image" >&2
+		exit 1
+	fi
+}
+
 if [ "$MIGRATE_CEZANNE_2607" -eq 1 ]; then
 	image_size=$((16 * 1024 * 1024))
 	migration_offset=$((0xd0000))
@@ -157,6 +170,8 @@ EOF
 	)
 	require_layout "$REFERENCE" "$old_layout" "26.07 Cezanne reference"
 	require_layout "$HEADS_ROM" "$new_layout" "PSP_NVRAM-aware Heads"
+	require_preserve_region "$HEADS_ROM" PSP_NVRAM \
+		"$psp_nvram_size" "$migration_offset"
 
 	psp_nvram="$tmpdir/PSP_NVRAM.bin"
 	erased_nvram="$tmpdir/PSP_NVRAM.erased.bin"
