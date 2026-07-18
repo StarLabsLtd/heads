@@ -85,6 +85,10 @@ flashprog --progress --programmer internal --fmap -i COREBOOT
 
 It excludes descriptor, ME/PSP, EC, MRC cache, SMMSTORE, console, and FMAP.
 The Gemini Lake analysis targets intentionally expose no flash command.
+Every physical coreboot configuration selects the UEFI-variable option
+backend, so the per-unit serial number continues to come from the preserved
+`SMMSTORE` region. The compiled serial is only a board-family fallback for an
+uninitialized store.
 
 Before a first boot on hardware:
 
