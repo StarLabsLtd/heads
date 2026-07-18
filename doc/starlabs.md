@@ -67,8 +67,8 @@ Space-constrained Intel targets include `boards/starlabs/compact.config`.
 That profile keeps the graphical UI, GPG verification, TPM2 tools, USB
 storage, flash tools, CBMEM tools, and kexec. It omits encrypted-storage and
 LVM tools, HOTP/TOTP enrollment, QR generation, mobile tethering, extra
-filesystem-maintenance tools, PCI inspection, and loadable keymaps. The full
-profile remains mandatory for the StarBook MTL proof board.
+filesystem-maintenance tools, and loadable keymaps. The full profile remains
+mandatory for the StarBook MTL proof board.
 
 Run the QEMU gate with a TPM2 software device using the normal Heads QEMU
 workflow:
