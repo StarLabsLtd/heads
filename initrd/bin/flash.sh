@@ -21,7 +21,10 @@ esac
 flash_rom() {
   ROM=$1
   if [ "$READ" -eq 1 ]; then
-    $CONFIG_FLASH_OPTIONS -r "${ROM}" \
+    # ROM-hole boards need the separate FMAP bytes for cbfs.sh to locate and
+    # edit COREBOOT. Their write policy remains constrained to COREBOOT.
+    FLASH_READ_OPTIONS=${CONFIG_FLASH_READ_OPTIONS:-$CONFIG_FLASH_OPTIONS}
+    $FLASH_READ_OPTIONS -r "${ROM}" \
     || recovery "Backup to $ROM failed"
   else
     STATUS "Preparing new ROM image for flashing"
