@@ -172,7 +172,10 @@ stable physical release configurations at this source revision.
 
 Fourteen of the 17 maintained release configurations therefore build and pass
 their immutable-layout audit. KBL and both GLK variants remain the three
-staged-payload integration cases.
+staged-payload integration cases. Their reported deficits are bytes by which
+the required firmware content exceeds the largest immutable-layout CBFS region
+in the target SPI ROM. They are not host filesystem or build-disk shortages;
+additional free space on the build machine cannot change these results.
 
 The corrected compact Cezanne artifacts were built twice after deleting only
 their generated board trees; both pairs were byte-identical. Both images are
@@ -230,22 +233,22 @@ another lane holds the unit. No other remote board substitutes for this proof.
 
 ## Representative hardware matrix
 
-The smallest defensible set is seven systems:
+The coreboot hardware matrix reduces the required Heads coverage to five SoC
+and layout families:
 
 | Board | Coverage added |
 | --- | --- |
-| Lite ADL | First local/recovery-backed risk target, ADL/IOT FSP, PTT, ITE EC, eDP and keyboard/touch input |
-| StarBook MTL | MTL, 32 MiB/14 MiB BIOS layout, discrete TPM2, ITE EC, eDP and PS/2 input |
 | StarBook Cezanne | AMD PSP/APCB/fTPM, AMD display initialization, 16 MiB single-region layout |
 | Lite GLKR | Gemini Lake signed IFWI, Nuvoton EC, tablet input/display, smallest ROM layout |
-| LabTop KBL | Older Intel 8 MiB layout without a Merlin EC image |
-| Byte TWL | Headless/mini-PC path, USB keyboard, external HDMI display, PTT/CRB TPM |
-| StarFighter RPL | 32 MiB/16 MiB BIOS layout and distinct StarFighter input/display platform |
+| StarBook MTL | Meteor Lake, 32 MiB/14 MiB BIOS layout, discrete TPM2, ITE EC, eDP and PS/2 input |
+| Lite ADL (Triangle) | First local/recovery-backed risk target, Alder Lake-N FSP, PTT, ITE EC, eDP and keyboard/touch input |
+| StarBook ADL | Alder Lake, 32 MiB/16 MiB BIOS layout, PTT, ITE EC, eDP and PS/2 input |
 
 Do not flash another remote system while StarBook MTL awaits physical
 observation. Complete the Lite ADL first-boot proof next; retain GLK/GLKR for
 their later family/space-specific validation after the staged architecture is
-integrated into a reviewable candidate.
+integrated into a reviewable candidate. KBL still requires a software-complete
+staged-payload solution, but it does not add a sixth required hardware family.
 
 The two Cezanne targets now fit without removing verified boot, TPM2, display,
 USB recovery, or kexec functionality. StarBook Cezanne remains unchanged as
