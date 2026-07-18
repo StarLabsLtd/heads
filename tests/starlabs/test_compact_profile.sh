@@ -56,6 +56,9 @@ all:
 MAKEFILE
 done
 
+grep -F 'if [ -x /bin/qrenc ]; then' \
+	"$repo_root/initrd/bin/kexec-boot.sh" >/dev/null
+
 grep -F 'busybox_module := busybox-compact' \
 	"$repo_root/modules/busybox" >/dev/null
 grep -F '$(busybox_module)_patch_name_override := busybox-1.36.1' \
