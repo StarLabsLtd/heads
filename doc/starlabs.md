@@ -1,9 +1,11 @@
 # Star Labs boards
 
-This layer builds Heads for the 17 physical Star Labs coreboot release
-configurations current in release 26.07. `starlabs_qemu` is the software gate.
-The exact StarBook MTL result awaits physical observation; local Lite ADL is
-the next first-boot target for unproven firmware.
+This layer supports full in-flash Heads on 14 of the 17 physical Star Labs
+coreboot release configurations current in release 26.07. `starlabs_qemu` is
+the software gate. LabTop KBL, Lite GLK, and Lite GLKR are explicitly
+unsupported because their fixed 8 MiB flash layouts cannot contain the full
+Heads payload. The exact StarBook MTL result awaits physical observation;
+local Lite ADL is the next first-boot target for unproven firmware.
 
 ## Pinned sources
 
@@ -64,12 +66,13 @@ HEADS_DISABLE_USB=1 ./docker_repro.sh env \
 `starlabs_qemu` omits the firmware SBOM and does not need Go. Physical targets
 generate the SBOM and therefore consume the pinned, read-only Go toolchain.
 
-Space-constrained Intel targets include `boards/starlabs/compact.config`.
-That profile keeps the graphical UI, GPG verification, TPM2 tools, USB
-storage, flash tools, CBMEM tools, and kexec. It omits encrypted-storage and
-LVM tools, HOTP/TOTP enrollment, QR generation, mobile tethering, extra
+The supported Cezanne targets include `boards/starlabs/compact.config`. That
+profile keeps the graphical UI, GPG verification, TPM2 tools, USB storage,
+flash tools, CBMEM tools, and kexec. It omits encrypted-storage and LVM tools,
+HOTP/TOTP enrollment, QR generation, mobile tethering, extra
 filesystem-maintenance tools, and loadable keymaps. The full profile remains
-mandatory for the StarBook MTL proof board.
+mandatory for the StarBook MTL proof board. Do not use further profile
+reduction to try to support the three excluded 8 MiB targets.
 
 Run the QEMU gate with a TPM2 software device using the normal Heads QEMU
 workflow:
@@ -87,7 +90,7 @@ flashprog --progress --programmer internal --fmap -i COREBOOT
 ```
 
 It excludes descriptor, ME/PSP, EC, MRC cache, SMMSTORE, console, and FMAP.
-The Gemini Lake analysis targets intentionally expose no flash command.
+The three unsupported analysis targets intentionally expose no flash command.
 Every physical coreboot configuration selects the UEFI-variable option
 backend, so the per-unit serial number continues to come from the preserved
 `SMMSTORE` region. The compiled serial is only a board-family fallback for an
@@ -153,10 +156,10 @@ For StarBook MTL the full image is `0x2000000` bytes. Its release layout is:
 | `starlabs_byte_cezanne` | AMD Cezanne, 16 MiB | `0xf0f000` | Build and reproducibility pass; 63,524-byte contiguous margin; external AMD publication also required |
 | `starlabs_byte_twl` | TWL/ADL, 16 MiB | `0x92f000` | Build passes |
 | `starlabs_labtop_cml` | CML, 16 MiB | `0xb2fe00` | Build passes |
-| `starlabs_labtop_kbl` | KBL, 8 MiB | `0x54fe00` | Current payload is 2,744,604 bytes over the largest CBFS slot; staged payload required |
+| `starlabs_labtop_kbl` | KBL, 8 MiB | `0x54fe00` | Unsupported for full in-flash Heads; fixed layout is 2,744,604 bytes short |
 | `starlabs_lite_adl` | ADL, 16 MiB | `0x92f000` | Build/layout pass; signed normal-path candidate passes offline validation |
-| `starlabs_lite_glk` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Current payload is 5,594,396 bytes over the largest CBFS slot; packed signed stage0 fits; signed IFWI also required |
-| `starlabs_lite_glkr` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Current payload is 5,591,580 bytes over the largest CBFS slot; packed signed stage0 fits; signed IFWI also required |
+| `starlabs_lite_glk` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Unsupported for full in-flash Heads; fixed layout is 5,594,396 bytes short |
+| `starlabs_lite_glkr` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Unsupported for full in-flash Heads; fixed layout is 5,591,580 bytes short |
 | `starlabs_starbook_adl` | ADL, 32 MiB | `0xf2f000` | Build passes |
 | `starlabs_starbook_adl_n` | ADL-N, 16 MiB | `0x92f000` | Build passes |
 | `starlabs_starbook_cezanne` | AMD Cezanne, 16 MiB | `0xf0f000` | Build and reproducibility pass; 59,556-byte contiguous margin; external AMD publication also required |
@@ -170,9 +173,9 @@ For StarBook MTL the full image is `0x2000000` bytes. Its release layout is:
 StarFighter PHX and Horizon 1334U are excluded because they are not current,
 stable physical release configurations at this source revision.
 
-Fourteen of the 17 maintained release configurations therefore build and pass
-their immutable-layout audit. KBL and both GLK variants remain the three
-staged-payload integration cases. Their reported deficits are bytes by which
+Fourteen of the 17 maintained release configurations build and pass their
+immutable-layout audit. LabTop KBL, Lite GLK, and Lite GLKR are not active
+build, capacity, or hardware gates. Their reported deficits are bytes by which
 the required firmware content exceeds the largest immutable-layout CBFS region
 in the target SPI ROM. They are not host filesystem or build-disk shortages;
 additional free space on the build machine cannot change these results.
@@ -187,17 +190,15 @@ detection, and removes its remaining ARP applet. The compact runtime libraries
 are fully rebuilt before applying their maintained export maps; libpng's
 generated link rule retains its map through the final link.
 
-KBL and GLK cannot be solved by further compact-profile trimming without
-crossing required gates. The software prototype therefore keeps an immutable
-stage0 in SPI and loads signed A/B/recovery stage1 images from ESP. The current
-2.4 MiB stage0 does not fit the stock GLK layout's 1,434,432-byte largest slot,
-but an immutable packed layout expands `COREBOOT` to 2,473,472 bytes while
-retaining the full 512 KiB `SMMSTORE`; both GLK variants then fit with more than
-123 KiB free. QEMU covers signature rejection, corruption fallback, A/B epoch
-selection, rollback, TPM2/IMA measurement, and kexec into the full graphical
-Heads stage1. This remains an evidence-only prototype until the layout and
-stage0 builder are integrated into the source tree. KBL uses the same staged
-payload design without requiring the GLK IFWI repack.
+Further compact-profile trimming cannot solve KBL or GLK without crossing the
+required verified-boot, TPM2, display, USB recovery, flash, or kexec gates.
+Historical software evidence explored an immutable SPI stage0 and signed
+A/B/recovery stage1 images on ESP. It includes QEMU signature rejection,
+corruption fallback, A/B epoch selection, rollback, TPM2/IMA measurement, and
+kexec results. That prototype is retained under the capacity-analysis evidence
+as a possible future architecture input only. A security-complete stage0 was
+not integrated or proven to fit every target, and staged or reduced modes are
+not part of the current Heads scope.
 
 ## Proof-board gates
 
@@ -233,22 +234,20 @@ another lane holds the unit. No other remote board substitutes for this proof.
 
 ## Representative hardware matrix
 
-The coreboot hardware matrix reduces the required Heads coverage to five SoC
-and layout families:
+The supported coreboot hardware matrix reduces required Heads coverage to four
+SoC and layout families. Gemini Lake has no supported full in-flash Heads
+target in the current fixed 8 MiB layouts.
 
 | Board | Coverage added |
 | --- | --- |
 | StarBook Cezanne | AMD PSP/APCB/fTPM, AMD display initialization, 16 MiB single-region layout |
-| Lite GLKR | Gemini Lake signed IFWI, Nuvoton EC, tablet input/display, smallest ROM layout |
 | StarBook MTL | Meteor Lake, 32 MiB/14 MiB BIOS layout, discrete TPM2, ITE EC, eDP and PS/2 input |
 | Lite ADL (Triangle) | First local/recovery-backed risk target, Alder Lake-N FSP, PTT, ITE EC, eDP and keyboard/touch input |
 | StarBook ADL | Alder Lake, 32 MiB/16 MiB BIOS layout, PTT, ITE EC, eDP and PS/2 input |
 
 Do not flash another remote system while StarBook MTL awaits physical
-observation. Complete the Lite ADL first-boot proof next; retain GLK/GLKR for
-their later family/space-specific validation after the staged architecture is
-integrated into a reviewable candidate. KBL still requires a software-complete
-staged-payload solution, but it does not add a sixth required hardware family.
+observation. Complete the Lite ADL first-boot proof next. KBL, GLK, and GLKR
+have no active Heads hardware or staged-payload validation gate.
 
 The two Cezanne targets now fit without removing verified boot, TPM2, display,
 USB recovery, or kexec functionality. StarBook Cezanne remains unchanged as

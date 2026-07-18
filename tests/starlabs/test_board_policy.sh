@@ -22,7 +22,7 @@ for config in "$repo_root"/config/coreboot-starlabs_*.config; do
 done
 
 intel_boards=(
-	adl_horizon byte_adl byte_twl labtop_cml labtop_kbl lite_adl
+	adl_horizon byte_adl byte_twl labtop_cml lite_adl
 	starbook_adl starbook_adl_n starbook_mtl starbook_rpl starbook_tgl
 	starfighter_mtl starfighter_rpl
 )
@@ -35,6 +35,11 @@ for board in "${intel_boards[@]}"; do
 	grep -Fx '# CONFIG_INTEL_CHIPSET_LOCKDOWN is not set' "$config" >/dev/null
 	grep -Fx 'CONFIG_SOC_INTEL_COMMON_SPI_LOCKDOWN_SMM=y' "$config" >/dev/null
 	grep -Eq '^include .*boards/starlabs/(compact|physical)-intel\.config$' \
+		"$repo_root/boards/starlabs_${board}/starlabs_${board}.config"
+done
+
+for board in labtop_kbl lite_glk lite_glkr; do
+	grep -Eq '^include .*boards/starlabs/compact-analysis-intel\.config$' \
 		"$repo_root/boards/starlabs_${board}/starlabs_${board}.config"
 done
 

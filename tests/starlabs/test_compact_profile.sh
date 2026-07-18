@@ -37,15 +37,12 @@ for board in byte_cezanne starbook_cezanne; do
 		"$repo_root/boards/starlabs_${board}/starlabs_${board}.config"
 done
 
-grep -Eq '^include .*boards/starlabs/compact-intel\.config$' \
-	"$repo_root/boards/starlabs_labtop_kbl/starlabs_labtop_kbl.config"
-
-for board in lite_glk lite_glkr; do
+for board in labtop_kbl lite_glk lite_glkr; do
 	grep -Eq '^include .*boards/starlabs/compact-analysis-intel\.config$' \
 		"$repo_root/boards/starlabs_${board}/starlabs_${board}.config"
 done
 
-for board in lite_glk lite_glkr; do
+for board in labtop_kbl lite_glk lite_glkr; do
 	make -s -f - repo_root="$repo_root" board="$board" <<'MAKEFILE'
 pwd := $(repo_root)
 include $(repo_root)/boards/starlabs_$(board)/starlabs_$(board).config
@@ -57,11 +54,6 @@ all:
 	@! env | grep -q '^CONFIG_FLASH_OPTIONS='
 	@! env | grep -q '^CONFIG_FLASH_READ_OPTIONS='
 MAKEFILE
-done
-
-for board in labtop_kbl; do
-	grep -Eq '^include .*boards/starlabs/compact-intel\.config$' \
-		"$repo_root/boards/starlabs_${board}/starlabs_${board}.config"
 done
 
 grep -F 'busybox_module := busybox-compact' \
