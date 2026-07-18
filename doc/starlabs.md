@@ -8,6 +8,8 @@ configurations current in release 26.07. StarBook MTL is the proof board and
 
 - Heads base: `548526df0f5fa9616d882ff2932ced08b88d04aa`
 - Reproducible container: `tlaurion/heads-dev-env@sha256:96f8f91c6464305c4a990d59f9ef93910c16c7fd0501a46b43b34a4600a368de`
+- SBOM Go toolchain: `go1.26.0.linux-amd64.tar.gz`, SHA-256
+  `aac1b08a0fb0c4e0a7c1555beb7b59180b05dfc5a3d62e40e9de90cd42f88235`
 - Star Labs coreboot: `https://github.com/StarLabsLtd/coreboot.git` at
   `3531cde8002a9afff8ad4c272b2c4ea015f45012` (`release_26.07_1`)
 - Star Labs coreboot blobs submodule:
@@ -25,8 +27,11 @@ file before coreboot configure and build:
 
 ```sh
 export AMD_BINARIES=/absolute/path/to/amd_binaries
-export HEADS_DOCKER_READONLY_MOUNTS="$AMD_BINARIES=$(pwd)/build/x86/amd_binaries"
-HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=starlabs_starbook_cezanne
+export GO_TOOLCHAIN=/absolute/path/to/go1.26.0
+export HEADS_DOCKER_READONLY_MOUNTS="$GO_TOOLCHAIN=/opt/go1.26.0;$AMD_BINARIES=$(pwd)/build/x86/amd_binaries"
+HEADS_DISABLE_USB=1 ./docker_repro.sh env \
+  PATH=/opt/go1.26.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  make BOARD=starlabs_starbook_cezanne
 ```
 
 Publishing those bytes at an immutable Star Labs revision remains necessary
@@ -40,8 +45,16 @@ Use the pinned container for every target:
 
 ```sh
 HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=starlabs_qemu
-HEADS_DISABLE_USB=1 ./docker_repro.sh make BOARD=starlabs_starbook_mtl
+
+export GO_TOOLCHAIN=/absolute/path/to/go1.26.0
+export HEADS_DOCKER_READONLY_MOUNTS="$GO_TOOLCHAIN=/opt/go1.26.0"
+HEADS_DISABLE_USB=1 ./docker_repro.sh env \
+  PATH=/opt/go1.26.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  make BOARD=starlabs_starbook_mtl
 ```
+
+`starlabs_qemu` omits the firmware SBOM and does not need Go. Physical targets
+generate the SBOM and therefore consume the pinned, read-only Go toolchain.
 
 Space-constrained Intel targets include `boards/starlabs/compact.config`.
 That profile keeps the graphical UI, GPG verification, TPM2 tools, USB
@@ -96,26 +109,26 @@ For StarBook MTL the full image is `0x2000000` bytes. Its release layout is:
 
 ## Build matrix
 
-| Heads board | SoC/layout family | `COREBOOT` bytes | Hardware status |
+| Heads board | SoC/layout family | `COREBOOT` bytes | Software status |
 | --- | --- | ---: | --- |
-| `starlabs_adl_horizon` | ADL, 16 MiB | `0x92f000` | Compact profile |
-| `starlabs_byte_adl` | ADL, 16 MiB | `0x92f000` | Compact profile |
-| `starlabs_byte_cezanne` | AMD Cezanne, 16 MiB | `0xf2f000` | Blocked: external publication and capacity |
-| `starlabs_byte_twl` | TWL/ADL, 16 MiB | `0x92f000` | Compact profile |
-| `starlabs_labtop_cml` | CML, 16 MiB | `0xb2fe00` | Build required |
-| `starlabs_labtop_kbl` | KBL, 8 MiB | `0x54fe00` | Blocked: capacity |
-| `starlabs_lite_adl` | ADL, 16 MiB | `0x92f000` | Compact profile |
-| `starlabs_lite_glk` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Blocked: signed IFWI and capacity |
-| `starlabs_lite_glkr` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Blocked: signed IFWI and capacity |
-| `starlabs_starbook_adl` | ADL, 32 MiB | `0xf2f000` | Build required |
-| `starlabs_starbook_adl_n` | ADL-N, 16 MiB | `0x92f000` | Compact profile |
-| `starlabs_starbook_cezanne` | AMD Cezanne, 16 MiB | `0xf2f000` | Blocked: external publication and capacity |
-| `starlabs_starbook_mtl` | MTL, 32 MiB | `0xd2f000` | Proof board |
-| `starlabs_starbook_rpl` | RPL, 32 MiB | `0xf2f000` | Build required |
-| `starlabs_starbook_tgl` | TGL, 16 MiB | `0xa2f000` | Compact profile |
-| `starlabs_starfighter_mtl` | MTL, 32 MiB | `0xf2f000` | Build required |
-| `starlabs_starfighter_rpl` | RPL, 32 MiB | `0xf2f000` | Build required |
-| `starlabs_qemu` | Q35/TPM2 software gate | `0xfe0000` | Build and boot required |
+| `starlabs_adl_horizon` | ADL, 16 MiB | `0x92f000` | Build passes |
+| `starlabs_byte_adl` | ADL, 16 MiB | `0x92f000` | Build passes |
+| `starlabs_byte_cezanne` | AMD Cezanne, 16 MiB | `0xf2f000` | Capacity deficit: 420,188 bytes; external AMD publication also required |
+| `starlabs_byte_twl` | TWL/ADL, 16 MiB | `0x92f000` | Build passes |
+| `starlabs_labtop_cml` | CML, 16 MiB | `0xb2fe00` | Build passes |
+| `starlabs_labtop_kbl` | KBL, 8 MiB | `0x54fe00` | Capacity deficit: 3,362,908 bytes |
+| `starlabs_lite_adl` | ADL, 16 MiB | `0x92f000` | Build passes |
+| `starlabs_lite_glk` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Capacity deficit: 8,128,732 bytes; signed IFWI also required |
+| `starlabs_lite_glkr` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Capacity deficit: 8,128,028 bytes; signed IFWI also required |
+| `starlabs_starbook_adl` | ADL, 32 MiB | `0xf2f000` | Build passes |
+| `starlabs_starbook_adl_n` | ADL-N, 16 MiB | `0x92f000` | Build passes |
+| `starlabs_starbook_cezanne` | AMD Cezanne, 16 MiB | `0xf2f000` | Capacity deficit: 423,708 bytes; external AMD publication also required |
+| `starlabs_starbook_mtl` | MTL, 32 MiB | `0xd2f000` | Build passes; proof-board hardware gate pending |
+| `starlabs_starbook_rpl` | RPL, 32 MiB | `0xf2f000` | Build passes |
+| `starlabs_starbook_tgl` | TGL, 16 MiB | `0xa2f000` | Build passes |
+| `starlabs_starfighter_mtl` | MTL, 32 MiB | `0xf2f000` | Build passes |
+| `starlabs_starfighter_rpl` | RPL, 32 MiB | `0xf2f000` | Build passes |
+| `starlabs_qemu` | Q35/TPM2 software gate | `0xfe0000` | Build, TPM2 boot, and reproducibility pass |
 
 StarFighter PHX and Horizon 1334U are excluded because they are not current,
 stable physical release configurations at this source revision.
@@ -151,5 +164,5 @@ KBL/GLK capacity blockers have a viable architecture.
 
 The two Cezanne targets must also fit without removing verified boot, TPM2,
 display, USB recovery, or kexec functionality before allocating either AMD
-system. The compact payload is still about 400 KiB larger than the current
-Cezanne `COREBOOT` slot.
+system. The exact deficits are 420,188 bytes for Byte Cezanne and 423,708 bytes
+for StarBook Cezanne.
