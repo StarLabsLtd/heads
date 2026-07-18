@@ -38,6 +38,9 @@ Publishing those bytes at an immutable Star Labs revision remains necessary
 before Cezanne targets can be built by public CI without an external input.
 The Cezanne coreboot configurations also select `CONFIG_USE_AMD_BLOBS`, so
 coreboot initializes its pinned `3rdparty/amd_blobs` gitlink on a clean build.
+Their fTPM configuration reserves `PSP_NVRAM(PRESERVE)` at `0xd0000`, size
+`0x20000`; the generated PSP L2 directory must contain type `0x04` with that
+same address and size.
 
 ## Building
 
@@ -113,7 +116,7 @@ For StarBook MTL the full image is `0x2000000` bytes. Its release layout is:
 | --- | --- | ---: | --- |
 | `starlabs_adl_horizon` | ADL, 16 MiB | `0x92f000` | Build passes |
 | `starlabs_byte_adl` | ADL, 16 MiB | `0x92f000` | Build passes |
-| `starlabs_byte_cezanne` | AMD Cezanne, 16 MiB | `0xf2f000` | Capacity deficit: 420,188 bytes; external AMD publication also required |
+| `starlabs_byte_cezanne` | AMD Cezanne, 16 MiB | `0xf0f000` | Capacity deficit: 549,660 bytes; external AMD publication also required |
 | `starlabs_byte_twl` | TWL/ADL, 16 MiB | `0x92f000` | Build passes |
 | `starlabs_labtop_cml` | CML, 16 MiB | `0xb2fe00` | Build passes |
 | `starlabs_labtop_kbl` | KBL, 8 MiB | `0x54fe00` | Capacity deficit: 3,362,908 bytes |
@@ -122,7 +125,7 @@ For StarBook MTL the full image is `0x2000000` bytes. Its release layout is:
 | `starlabs_lite_glkr` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Capacity deficit: 8,128,028 bytes; signed IFWI also required |
 | `starlabs_starbook_adl` | ADL, 32 MiB | `0xf2f000` | Build passes |
 | `starlabs_starbook_adl_n` | ADL-N, 16 MiB | `0x92f000` | Build passes |
-| `starlabs_starbook_cezanne` | AMD Cezanne, 16 MiB | `0xf2f000` | Capacity deficit: 423,708 bytes; external AMD publication also required |
+| `starlabs_starbook_cezanne` | AMD Cezanne, 16 MiB | `0xf0f000` | Capacity deficit: 556,828 bytes; external AMD publication also required |
 | `starlabs_starbook_mtl` | MTL, 32 MiB | `0xd2f000` | Build passes; proof-board hardware gate pending |
 | `starlabs_starbook_rpl` | RPL, 32 MiB | `0xf2f000` | Build passes |
 | `starlabs_starbook_tgl` | TGL, 16 MiB | `0xa2f000` | Build passes |
