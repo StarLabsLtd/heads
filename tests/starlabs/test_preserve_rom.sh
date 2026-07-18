@@ -25,6 +25,7 @@ cbfs() {
 	printf '%s\n' "$*" >> "$tmpdir/cbfs.log"
 	case " $* " in
 		*" -l "*)
+			[ "${CBFS_LIST_FAIL:-0}" = 1 ] && return 1
 			printf '%s\n' \
 				'heads/initrd/.gnupg/pubring.kbx' \
 				'heads/initrd/etc/config.user'
@@ -78,5 +79,16 @@ if preserve_rom "$new_rom"; then
 fi
 [ ! -s "$tmpdir/cbfs.log" ]
 grep -Fx 'preserve_rom: current firmware readback is unavailable' "$tmpdir/die.log" >/dev/null
+
+printf 'current' > "$CBFS_CURRENT_ROM"
+CBFS_LIST_FAIL=1
+for CONFIG_CBFS_VIA_FLASHPROG in y n; do
+	if preserve_rom "$new_rom"; then
+		echo "Preservation succeeded after a CBFS listing failure" >&2
+		exit 1
+	fi
+done
+[ "$(grep -cFx 'preserve_rom: failed to list current firmware CBFS' "$tmpdir/die.log")" -eq 2 ]
+[ ! -e "/tmp/cbfs-list.$$" ]
 
 echo "Star Labs CBFS preservation tests passed"

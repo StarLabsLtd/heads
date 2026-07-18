@@ -490,17 +490,27 @@ preserve_rom() {
 	#   read path on boards where direct CBFS access cannot cross a ROM hole.
 	# Files preserved: all CBFS type-50 entries under the 'heads/' prefix.
 	new_rom="$1"
+	cbfs_listing="/tmp/cbfs-list.$$"
 	if [ "$CONFIG_CBFS_VIA_FLASHPROG" = "y" ]; then
 		current_cbfs_rom="${CBFS_CURRENT_ROM:-/tmp/cbfs-init.rom}"
 		if [ ! -s "$current_cbfs_rom" ]; then
 			DIE "preserve_rom: current firmware readback is unavailable"
 			return 1
 		fi
-		old_files=$(cbfs -t 50 -o "$current_cbfs_rom" -l 2>/dev/null |
-			grep "^heads/" || true)
+		if ! cbfs -t 50 -o "$current_cbfs_rom" -l >"$cbfs_listing" 2>/dev/null; then
+			rm -f "$cbfs_listing"
+			DIE "preserve_rom: failed to list current firmware CBFS"
+			return 1
+		fi
 	else
-		old_files=$(cbfs -t 50 -l 2>/dev/null | grep "^heads/" || true)
+		if ! cbfs -t 50 -l >"$cbfs_listing" 2>/dev/null; then
+			rm -f "$cbfs_listing"
+			DIE "preserve_rom: failed to list current firmware CBFS"
+			return 1
+		fi
 	fi
+	old_files=$(grep "^heads/" "$cbfs_listing" || true)
+	rm -f "$cbfs_listing"
 	old_file_count=$(printf '%s\n' "$old_files" | wc -w)
 
 	if [ "$old_file_count" -eq 0 ]; then
