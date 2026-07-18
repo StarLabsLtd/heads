@@ -92,19 +92,19 @@ backend, so the per-unit serial number continues to come from the preserved
 `SMMSTORE` region. The compiled serial is only a board-family fallback for an
 uninitialized store.
 
-Before a first boot on hardware:
+Before a first boot on a designated test box:
 
-1. Make two full-chip reads with the external programmer and require matching
-   SHA-256 hashes. Keep one read immutable as the per-unit recovery image.
-2. Audit the backup and Heads ROM with `bin/starlabs-fmap-audit.sh`, including
-   the correct `--expected-size` and Intel `--ifd-platform` where applicable.
-3. Use `bin/starlabs-merge-coreboot.sh` to copy only Heads `COREBOOT` into a
-   copy of the per-unit backup when both images have an identical embedded
-   board identity and FMAP.
-4. Audit the merged image again. The merge tool must report that every byte
-   outside `COREBOOT` is identical to the backup.
-5. Do not flash until the board is locally recoverable with that programmer,
-   or the hardware owner has explicitly made recovery available.
+1. Reserve the exact unit, verify its identity/release state, and capture the
+   read-only firmware, power, BootOrder, TPM/PCR, and device baseline.
+2. Audit the live image and Heads ROM with `bin/starlabs-fmap-audit.sh`,
+   including the correct `--expected-size` and Intel `--ifd-platform`.
+3. Use `bin/starlabs-merge-coreboot.sh` to copy only Heads `COREBOOT` into the
+   fresh live image when both images have an identical identity and FMAP.
+4. Require the merge tool to prove every byte outside `COREBOOT` is identical,
+   then package a signed update whose RMAP selects only `COREBOOT`.
+5. Install through the normal signed update path. An external programmer,
+   duplicate full-chip read, or exercised restore is not a pre-test gate for a
+   designated test box; use physical recovery after an actual brick.
 
 The Cezanne 26.07.1 release has no `PSP_NVRAM` region. Its first transition
 to this Heads layout is therefore an explicit exception to the identical-FMAP
@@ -126,8 +126,9 @@ erased; and replaces the complete tail from `0xd0000` with the new FMAP and
 `COREBOOT`. The result is a full-chip first-transition image and must be
 written externally after the two-read recovery gate. Internal `COREBOOT`-only
 updates are valid only after the unit already has the new layout. The current
-Cezanne images do not yet fit, so this procedure prepares the migration path
-but does not authorize a candidate flash.
+compact Cezanne images fit, but this procedure does not authorize a candidate
+flash. StarBook Cezanne remains a read-only control until it is explicitly
+allocated for this migration test.
 
 For StarBook MTL the full image is `0x2000000` bytes. Its release layout is:
 
@@ -148,17 +149,17 @@ For StarBook MTL the full image is `0x2000000` bytes. Its release layout is:
 | --- | --- | ---: | --- |
 | `starlabs_adl_horizon` | ADL, 16 MiB | `0x92f000` | Build passes |
 | `starlabs_byte_adl` | ADL, 16 MiB | `0x92f000` | Build passes |
-| `starlabs_byte_cezanne` | AMD Cezanne, 16 MiB | `0xf0f000` | Capacity deficit: 549,660 bytes; external AMD publication also required |
+| `starlabs_byte_cezanne` | AMD Cezanne, 16 MiB | `0xf0f000` | Build and reproducibility pass; 63,524-byte contiguous margin; external AMD publication also required |
 | `starlabs_byte_twl` | TWL/ADL, 16 MiB | `0x92f000` | Build passes |
 | `starlabs_labtop_cml` | CML, 16 MiB | `0xb2fe00` | Build passes |
-| `starlabs_labtop_kbl` | KBL, 8 MiB | `0x54fe00` | Capacity deficit: 3,362,908 bytes |
+| `starlabs_labtop_kbl` | KBL, 8 MiB | `0x54fe00` | Current payload is 2,744,604 bytes over the largest CBFS slot; staged payload required |
 | `starlabs_lite_adl` | ADL, 16 MiB | `0x92f000` | Build passes |
-| `starlabs_lite_glk` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Capacity deficit: 8,128,732 bytes; signed IFWI also required |
-| `starlabs_lite_glkr` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Capacity deficit: 8,128,028 bytes; signed IFWI also required |
+| `starlabs_lite_glk` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Current payload is 5,594,396 bytes over the largest CBFS slot; packed signed stage0 fits; signed IFWI also required |
+| `starlabs_lite_glkr` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Current payload is 5,591,580 bytes over the largest CBFS slot; packed signed stage0 fits; signed IFWI also required |
 | `starlabs_starbook_adl` | ADL, 32 MiB | `0xf2f000` | Build passes |
 | `starlabs_starbook_adl_n` | ADL-N, 16 MiB | `0x92f000` | Build passes |
-| `starlabs_starbook_cezanne` | AMD Cezanne, 16 MiB | `0xf0f000` | Capacity deficit: 556,828 bytes; external AMD publication also required |
-| `starlabs_starbook_mtl` | MTL, 32 MiB | `0xd2f000` | Build passes; proof-board hardware gate pending |
+| `starlabs_starbook_cezanne` | AMD Cezanne, 16 MiB | `0xf0f000` | Build and reproducibility pass; 59,556-byte contiguous margin; external AMD publication also required |
+| `starlabs_starbook_mtl` | MTL, 32 MiB | `0xd2f000` | Build passes; first signed hardware attempt did not return remotely |
 | `starlabs_starbook_rpl` | RPL, 32 MiB | `0xf2f000` | Build passes |
 | `starlabs_starbook_tgl` | TGL, 16 MiB | `0xa2f000` | Build passes |
 | `starlabs_starfighter_mtl` | MTL, 32 MiB | `0xf2f000` | Build passes |
@@ -168,7 +169,41 @@ For StarBook MTL the full image is `0x2000000` bytes. Its release layout is:
 StarFighter PHX and Horizon 1334U are excluded because they are not current,
 stable physical release configurations at this source revision.
 
+Fourteen of the 17 maintained release configurations therefore build and pass
+their immutable-layout audit. KBL and both GLK variants remain the three
+staged-payload integration cases.
+
+The corrected compact Cezanne artifacts were built twice after deleting only
+their generated board trees; both pairs were byte-identical. Both images are
+16 MiB, pass the FMAP audit, retain `PSP_NVRAM(PRESERVE)`, and keep verified
+boot, TPM2, display, USB recovery, flash tools, and kexec. The compact BusyBox
+tree receives the normal Heads patches, has a deterministic banner, passes
+XZ+BCJ decompression, provides the numeric `lspci` interface used by blob-jail
+detection, and removes its remaining ARP applet. The compact runtime libraries
+are fully rebuilt before applying their maintained export maps; libpng's
+generated link rule retains its map through the final link.
+
+KBL and GLK cannot be solved by further compact-profile trimming without
+crossing required gates. The software prototype therefore keeps an immutable
+stage0 in SPI and loads signed A/B/recovery stage1 images from ESP. The current
+2.4 MiB stage0 does not fit the stock GLK layout's 1,434,432-byte largest slot,
+but an immutable packed layout expands `COREBOOT` to 2,473,472 bytes while
+retaining the full 512 KiB `SMMSTORE`; both GLK variants then fit with more than
+123 KiB free. QEMU covers signature rejection, corruption fallback, A/B epoch
+selection, rollback, TPM2/IMA measurement, and kexec into the full graphical
+Heads stage1. This remains an evidence-only prototype until the layout and
+stage0 builder are integrated into the source tree. KBL uses the same staged
+payload design without requiring the GLK IFWI repack.
+
 ## Proof-board gates
+
+The first StarBook MTL attempt used signed FMP 26.09 capsule SHA-256
+`d1b029ff3e27c9379d4b33c0330840e610dde9f7f43aeb5abf0517f390b83c75`
+from source `d5c9e993be1518d48820d4dc7adc65e45640702c`. Only `COREBOOT` differed
+from the fresh live 26.07 image. After the single update reboot, TCP/22 stayed
+closed for all 30 bounded checks. The unit is recorded as bricked/unreturned
+under the test policy; physical observation must first determine whether it is
+waiting at the interactive Heads UI. No remote retry is permitted meanwhile.
 
 Record all of these before marking StarBook MTL proven:
 
@@ -194,10 +229,10 @@ The smallest defensible set is six systems:
 | Byte TWL | Headless/mini-PC path, USB keyboard, external HDMI display, PTT/CRB TPM |
 | StarFighter RPL | 32 MiB/16 MiB BIOS layout and distinct StarFighter input/display platform |
 
-Do not allocate the five additional systems until StarBook MTL passes and the
-KBL/GLK capacity blockers have a viable architecture.
+Do not allocate the five additional systems until StarBook MTL is physically
+observed and the staged KBL/GLK architecture is integrated into a reviewable
+candidate.
 
-The two Cezanne targets must also fit without removing verified boot, TPM2,
-display, USB recovery, or kexec functionality before allocating either AMD
-system. The exact deficits are 549,660 bytes for Byte Cezanne and 556,828 bytes
-for StarBook Cezanne.
+The two Cezanne targets now fit without removing verified boot, TPM2, display,
+USB recovery, or kexec functionality. StarBook Cezanne remains unchanged as
+the known-working AMD control.
