@@ -23,7 +23,9 @@ are not copied into Heads.
 The current Cezanne release also needs Star Labs AMD data that is not present
 at the maintained repository's current commit. Mount that maintained working
 tree read-only; `config/starlabs-amd-binaries.sha256` verifies every consumed
-file before coreboot configure and build:
+file before coreboot configure and build. The container destination is fixed
+to `build/x86/amd_binaries` because that is the exact tree consumed by the
+Cezanne coreboot configuration:
 
 ```sh
 export AMD_BINARIES=/absolute/path/to/amd_binaries
