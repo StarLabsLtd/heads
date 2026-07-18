@@ -253,6 +253,7 @@ $(coreboot_module)_configure := \
 		-C "$(build)/$(coreboot_base_dir)" \
 		obj="$(build)/$(coreboot_dir)" \
 		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
+		XGCCPATH="$(build)/$($(coreboot_toolchain_module)_base_dir)/util/crossgcc/xgcc/bin/" \
 		BUILD_TIMELESS=1; \
 	echo ""; \
 	echo "Validating CONFIG_CBFS_SIZE vs IFD BIOS region..."; \
@@ -272,18 +273,6 @@ $(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain: $(COREBOOT_TOOLCHAIN_DIR)/.canary
 	touch "$@"
 
 $(build)/$(coreboot_dir)/.configured: $(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain
-
-# Some targets use a secondary architecture for a later coreboot stage. Keep
-# separate markers so an existing primary-toolchain marker cannot mask it.
-define coreboot-extra-toolchain =
-$(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain-$(1): $(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain
-	$$(MAKE) -C "$(build)/$$($(coreboot_toolchain_module)_base_dir)" CPUS=$$(CPUS) "crossgcc-$(1)" \
-		$$($(coreboot_toolchain_module)_toolchain_build_args)
-	touch "$$@"
-endef
-
-$(foreach toolchain,$(COREBOOT_EXTRA_TOOLCHAINS),$(eval $(call coreboot-extra-toolchain,$(toolchain))))
-$(build)/$(coreboot_dir)/.configured: $(foreach toolchain,$(COREBOOT_EXTRA_TOOLCHAINS),$(COREBOOT_TOOLCHAIN_DIR)/.heads-toolchain-$(toolchain))
 
 ## Toolchain packages ##
 # coreboot likes to download its own toolchain packages, but these sources can
