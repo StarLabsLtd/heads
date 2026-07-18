@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Sean Rhodes <sean@starlabs.systems>
+Date: Sat, 18 Jul 2026 00:58:00 +0100
+Subject: [PATCH] mainboard/starlabs/cezanne: enable fTPM
+
+Heads requires a TPM2 device for measured boot. Enable the Cezanne PSP
+fTPM and its SMI-backed flash service for both Star Labs variants.
+
+Signed-off-by: Sean Rhodes <sean@starlabs.systems>
+---
+ src/mainboard/starlabs/cezanne/Kconfig | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/mainboard/starlabs/cezanne/Kconfig b/src/mainboard/starlabs/cezanne/Kconfig
+index 84c1bfe329..be23fc91b8 100644
+--- a/src/mainboard/starlabs/cezanne/Kconfig
++++ b/src/mainboard/starlabs/cezanne/Kconfig
+@@ -2,6 +2,9 @@
+ 
+ config BOARD_STARLABS_CEZANNE_SERIES
+ 	def_bool n
++	select AMD_CRB_FTPM
++	select MAINBOARD_HAS_TPM2
++	select SOC_AMD_COMMON_BLOCK_PSP_SMI
+ 	select AMD_FWM_POSITION_820000_DEFAULT
+ 	select AMD_SOC_CONSOLE_UART
+ 	select AZALIA_HDA_CODEC_SUPPORT
+-- 
+2.43.0
