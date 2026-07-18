@@ -59,10 +59,48 @@ if [ -e "$OUTPUT" ] && [ "$FORCE" -ne 1 ]; then
 fi
 command -v "$CBFSTOOL" >/dev/null 2>&1 || { echo "cbfstool not found: $CBFSTOOL" >&2; exit 1; }
 
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+board_identity() {
+	local image=$1
+	local label=$2
+	local config="$tmpdir/$label.config"
+	local identity
+
+	if ! "$CBFSTOOL" "$image" extract -r COREBOOT -n config -f "$config" >/dev/null; then
+		echo "Unable to extract coreboot board identity from $label image: $image" >&2
+		exit 1
+	fi
+	identity=$(LC_ALL=C sed -n \
+		-e '/^CONFIG_MAINBOARD_VENDOR=/p' \
+		-e '/^CONFIG_MAINBOARD_PART_NUMBER=/p' \
+		-e '/^CONFIG_MAINBOARD_FAMILY=/p' \
+		-e '/^CONFIG_BOARD_STARLABS_.*=y$/p' \
+		"$config" | sort)
+	if ! grep -q '^CONFIG_MAINBOARD_VENDOR=' <<<"$identity" ||
+		! grep -q '^CONFIG_MAINBOARD_PART_NUMBER=' <<<"$identity" ||
+		! grep -q '^CONFIG_BOARD_STARLABS_.*=y$' <<<"$identity"; then
+		echo "Incomplete coreboot board identity in $label image: $image" >&2
+		exit 1
+	fi
+	printf '%s\n' "$identity"
+}
+
 reference_size=$(stat -c '%s' "$REFERENCE")
 heads_size=$(stat -c '%s' "$HEADS_ROM")
 if [ "$reference_size" -ne "$heads_size" ]; then
 	echo "Image size mismatch: reference=$reference_size heads=$heads_size" >&2
+	exit 1
+fi
+
+reference_identity=$(board_identity "$REFERENCE" reference)
+heads_identity=$(board_identity "$HEADS_ROM" heads)
+if [ "$reference_identity" != "$heads_identity" ]; then
+	echo "Board identity mismatch between reference and Heads images" >&2
+	diff -u \
+		<(printf '%s\n' "$reference_identity") \
+		<(printf '%s\n' "$heads_identity") >&2 || true
 	exit 1
 fi
 
@@ -120,8 +158,6 @@ EOF
 	require_layout "$REFERENCE" "$old_layout" "26.07 Cezanne reference"
 	require_layout "$HEADS_ROM" "$new_layout" "PSP_NVRAM-aware Heads"
 
-	tmpdir=$(mktemp -d)
-	trap 'rm -rf "$tmpdir"' EXIT
 	psp_nvram="$tmpdir/PSP_NVRAM.bin"
 	erased_nvram="$tmpdir/PSP_NVRAM.erased.bin"
 	dd if="$HEADS_ROM" of="$psp_nvram" bs="$block_size" \
@@ -197,8 +233,6 @@ if [ "$coreboot_size $coreboot_offset" != "$heads_coreboot_size $heads_coreboot_
 	exit 1
 fi
 
-tmpdir=$(mktemp -d)
-trap 'rm -rf "$tmpdir"' EXIT
 coreboot_image="$tmpdir/COREBOOT.bin"
 verified_image="$tmpdir/COREBOOT.verified.bin"
 

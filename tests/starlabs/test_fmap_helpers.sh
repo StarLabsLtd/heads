@@ -20,6 +20,28 @@ shift
 command=$1
 shift
 case "$command" in
+	extract)
+		output=
+		while [ "$#" -gt 0 ]; do
+			case "$1" in
+				-f) output=$2; shift 2 ;;
+				*) shift ;;
+			esac
+		done
+		[ -n "$output" ]
+		part='Test Board'
+		board=CONFIG_BOARD_STARLABS_TEST_BOARD
+		if [ "${FAKE_BOARD_MISMATCH:-0}" = 1 ] && [ "$(basename "$image")" = heads.rom ]; then
+			part='Different Board'
+			board=CONFIG_BOARD_STARLABS_DIFFERENT_BOARD
+		fi
+		cat > "$output" <<CONFIG
+CONFIG_MAINBOARD_VENDOR="Star Labs"
+CONFIG_MAINBOARD_PART_NUMBER="$part"
+CONFIG_MAINBOARD_FAMILY="TEST"
+$board=y
+CONFIG
+		;;
 	layout)
 		if [ "${FAKE_MIGRATION:-0}" = 1 ]; then
 			case "$(basename "$image")" in
@@ -137,6 +159,18 @@ truncate -s 16777216 "$reference"
 truncate -s 16777216 "$heads"
 printf 'per-unit-reference' | dd of="$reference" conv=notrunc status=none
 printf 'heads-coreboot-tail' | dd of="$heads" bs=1 seek=987136 conv=notrunc status=none
+
+if FAKE_BOARD_MISMATCH=1 "$merge" \
+	--migrate-cezanne-2607 \
+	--reference "$reference" \
+	--heads "$heads" \
+	--output "$tmpdir/wrong-board.rom" \
+	--cbfstool "$fake_cbfstool" >/dev/null 2>&1; then
+	echo "Merge accepted images from different boards" >&2
+	exit 1
+fi
+[ ! -e "$tmpdir/wrong-board.rom" ]
+
 dd if=/dev/zero bs=4096 count=32 status=none |
 	tr '\000' '\377' |
 	dd of="$heads" bs=4096 seek=208 conv=notrunc status=none

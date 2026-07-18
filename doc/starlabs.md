@@ -25,7 +25,9 @@ at the maintained repository's current commit. Mount that maintained working
 tree read-only; `config/starlabs-amd-binaries.sha256` verifies every consumed
 file before coreboot configure and build. The container destination is fixed
 to `build/x86/amd_binaries` because that is the exact tree consumed by the
-Cezanne coreboot configuration:
+Cezanne coreboot configuration. The verified manifest digest is a normal
+coreboot configure/build prerequisite, so a changed manifest invalidates cached
+Cezanne artifacts; changed bytes under an unchanged manifest fail verification:
 
 ```sh
 export AMD_BINARIES=/absolute/path/to/amd_binaries
@@ -97,7 +99,8 @@ Before a first boot on hardware:
 2. Audit the backup and Heads ROM with `bin/starlabs-fmap-audit.sh`, including
    the correct `--expected-size` and Intel `--ifd-platform` where applicable.
 3. Use `bin/starlabs-merge-coreboot.sh` to copy only Heads `COREBOOT` into a
-   copy of the per-unit backup when both images have an identical FMAP.
+   copy of the per-unit backup when both images have an identical embedded
+   board identity and FMAP.
 4. Audit the merged image again. The merge tool must report that every byte
    outside `COREBOOT` is identical to the backup.
 5. Do not flash until the board is locally recoverable with that programmer,
