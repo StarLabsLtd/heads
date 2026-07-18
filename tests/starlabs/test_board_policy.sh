@@ -43,6 +43,9 @@ for board in labtop_kbl lite_glk lite_glkr; do
 		"$repo_root/boards/starlabs_${board}/starlabs_${board}.config"
 done
 
+grep -Fx 'export CONFIG_USB_KEYBOARD_REQUIRED=y' \
+	"$repo_root/boards/starlabs_lite_adl/starlabs_lite_adl.config" >/dev/null
+
 for config in \
 	"$repo_root/config/coreboot-starlabs_byte_cezanne.config" \
 	"$repo_root/config/coreboot-starlabs_starbook_cezanne.config" \
