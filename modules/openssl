@@ -8,10 +8,14 @@ openssl_url := https://www.openssl.org/source/$(openssl_tar)
 openssl_hash := 6c13d2bf38fdf31eac3ce2a347073673f5d63263398f1f69d0df4a41253e4b3e
 
 # The only optional algorithm that's enabled is SM3.  tpm2-tss uses SHA, AES,
-# and SM3.
+# and SM3.  Section GC and the runtime export map retain every libcrypto symbol
+# consumed by the largest Heads profile while omitting unreachable APIs.
 openssl_configure := \
+	test ! -f Makefile || $(MAKE) clean \
+	&& \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	CFLAGS="-Os -ffunction-sections -fdata-sections" \
+	LDFLAGS="-Wl,--gc-sections" \
 	./Configure \
 		--prefix="/" \
 		linux-$(strip $(arch)) \
@@ -43,18 +47,54 @@ openssl_configure := \
 		no-sm4 \
 		no-tests \
 		no-whirlpool \
+		no-afalgeng \
+		no-async \
+		no-cmp \
+		no-cms \
+		no-comp \
+		no-ct \
+		no-deprecated \
+		no-dgram \
+		no-dso \
+		no-engine \
+		no-legacy \
+		no-module \
+		no-multiblock \
+		no-nextprotoneg \
+		no-ocsp \
+		no-padlockeng \
+		no-psk \
+		no-rfc3779 \
+		no-secure-memory \
+		no-sock \
+		no-srp \
+		no-srtp \
+		no-ssl \
+		no-ssl-trace \
+		no-ts \
+		no-ui-console \
 
 openssl_target := $(MAKE_JOBS) \
-	build_programs \
+	build_libs \
+	&& cp "$(pwd)/config/runtime-symbols/openssl.map" \
+		"$(build)/$(openssl_dir)/libcrypto.ld" \
+	&& rm -f "$(build)/$(openssl_dir)/libcrypto.so.3" \
+	&& \
+	$(MAKE) \
+		-C "$(build)/$(openssl_dir)" \
+		$(MAKE_JOBS) \
+		libcrypto.so.3 \
 	&& \
 	$(MAKE) \
 		-C "$(build)/$(openssl_dir)" \
 		DESTDIR="$(INSTALL)" \
 		LIBDIR="lib" \
-		install_sw \
+		install_dev \
 
 # Only libcrypto is needed currently, libssl is not included in initrd
 openssl_libraries := \
 	libcrypto.so.3 \
 
 openssl_depends := $(musl_dep)
+
+$(build)/$(openssl_dir)/.configured: $(pwd)/config/runtime-symbols/openssl.map

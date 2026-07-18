@@ -7,7 +7,11 @@ cairo_url := https://www.cairographics.org/releases/$(cairo_tar)
 cairo_hash := 8c90f00c500b2299c0a323dd9beead2a00353752b2092ead558139bd67f7bf16
 
 cairo_configure := \
-	CFLAGS="-DCAIRO_NO_MUTEX=1 -Os"  \
+	test ! -f Makefile || $(MAKE) clean \
+	&& \
+	ax_cv_c_float_words_bigendian=no \
+	CFLAGS="-DCAIRO_NO_MUTEX=1 -Os -ffunction-sections -fdata-sections" \
+	LDFLAGS="-Wl,--gc-sections -Wl,--version-script=$(pwd)/config/runtime-symbols/cairo.map" \
 	$(CROSS_TOOLS) \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
@@ -15,6 +19,7 @@ cairo_configure := \
 	--disable-fc \
 	--disable-ft \
 	--disable-gobject \
+	--disable-interpreter \
 	--disable-pdf \
 	--disable-ps \
 	--disable-pthread \
@@ -22,6 +27,9 @@ cairo_configure := \
 	--disable-svg \
 	--disable-xcb \
 	--disable-xlib \
+	&& sed -i 's/^SUBDIRS = src doc util .*/SUBDIRS = src/' \
+		"$(build)/$(cairo_dir)/Makefile" \
+	&& grep -qx 'SUBDIRS = src' "$(build)/$(cairo_dir)/Makefile" \
 	&& sed \
 		-e 's/^hardcode_libdir_flag_spec.*/hardcode_libdir_flag_spec=" -D__LIBTOOL_RPATH_DISABLE__ "/' \
 		< libtool \
@@ -38,3 +46,5 @@ cairo_target := \
 cairo_libraries := src/.libs/libcairo.so.2
 
 cairo_depends := pixman $(musl_dep)
+
+$(build)/$(cairo_dir)/.configured: $(pwd)/config/runtime-symbols/cairo.map

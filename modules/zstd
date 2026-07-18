@@ -9,12 +9,16 @@ zstd_tar := zstd-$(zstd_version).tar.gz
 zstd_url := https://github.com/facebook/zstd/releases/download/v$(zstd_version)/$(zstd_tar)
 zstd_hash := 9c4396cc829cfae319a6e2615202e82aad41372073482fce286fac78646d3ee4
 
-zstd_configure := true
+# Invalidate upstream objects when this module's size flags change. The generic
+# module stamp notices this file, but upstream make cannot see command changes.
+zstd_configure := $(MAKE) -C programs clean
 
 # Only the decompressor is built and installed, to be able to read zstd-compressed
 # initramfs archives.
 zstd_target := \
-	$(MAKE_JOBS) $(CROSS_TOOLS) -C programs CFLAGS="-g0 -Os" \
+	$(MAKE_JOBS) $(CROSS_TOOLS) -C programs \
+	CFLAGS="-g0 -Os -ffunction-sections -fdata-sections -flto" \
+	LDFLAGS="-Wl,--gc-sections -flto" \
 	HAVE_ZLIB=0 \
 	HAVE_LZMA=0 \
 	HAVE_LZ4=0 \

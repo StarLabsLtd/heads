@@ -7,18 +7,38 @@ libpng_url := https://github.com/glennrp/libpng-releases/raw/master/$(libpng_tar
 libpng_hash := 574623a4901a9969080ab4a2df9437026c8a87150dfd5c235e28c94b212964a7
 
 libpng_configure := \
+	test ! -f Makefile || $(MAKE) clean \
+	&& \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os" \
+	CFLAGS="-Os -ffunction-sections -fdata-sections" \
+	LDFLAGS="-Wl,--gc-sections" \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix="/" \
+	&& perl -0pi -e \
+		's{^libpng\.vers: scripts/vers\.out\n(?:\t.*\n)+\n}{libpng.vers: $(pwd)/config/runtime-symbols/libpng.map\n\tcp "$(pwd)/config/runtime-symbols/libpng.map" libpng.vers\n\n}m' \
+		Makefile \
+	&& grep -Fqx \
+		'libpng.vers: $(pwd)/config/runtime-symbols/libpng.map' Makefile \
 
 libpng_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
 	DESTDIR="$(INSTALL)" \
-	install \
+	install-libLTLIBRARIES \
+	install-pkgconfigDATA \
+	install-nodist_pkgincludeHEADERS \
+	install-pkgincludeHEADERS \
+	install-binSCRIPTS \
+	&& $(MAKE) \
+		-C "$(build)/$(libpng_dir)" \
+		$(CROSS_TOOLS) \
+		DESTDIR="$(INSTALL)" \
+		install-data-hook \
+		install-exec-hook \
 
 libpng_libraries := .libs/libpng16.so.16
 
 libpng_depends := zlib $(musl_dep)
+
+$(build)/$(libpng_dir)/.configured: $(pwd)/config/runtime-symbols/libpng.map

@@ -8,9 +8,15 @@ zlib_url := https://zlib.net/fossils/$(zlib_tar)
 zlib_hash := c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1
 
 zlib_configure := \
+	test ! -f Makefile || $(MAKE) clean \
+	&& \
 	$(CROSS_TOOLS) \
+	CFLAGS="-Os -ffunction-sections -fdata-sections" \
+	LDFLAGS="-Wl,--gc-sections" \
 	./configure \
 	--prefix="/" \
+	&& cp "$(pwd)/config/runtime-symbols/zlib.map" \
+		"$(build)/$(zlib_dir)/zlib.map" \
 
 zlib_target := \
 	$(MAKE_JOBS) \
@@ -21,3 +27,5 @@ zlib_target := \
 zlib_libraries := libz.so.1
 
 zlib_depends := $(musl_dep)
+
+$(build)/$(zlib_dir)/.configured: $(pwd)/config/runtime-symbols/zlib.map

@@ -1,0 +1,22 @@
+ZLIB_1.2.0 {
+  global:
+    adler32;
+    crc32;
+    deflate;
+    deflateEnd;
+    deflateInit2_;
+    deflateReset;
+    gzclose;
+    gzerror;
+    gzopen;
+    gzread;
+    inflate;
+    inflateEnd;
+    inflateInit2_;
+    inflateReset;
+    zlibVersion;
+  local: *;
+};
+ZLIB_1.2.2.3 { global: gzdirect; } ZLIB_1.2.0;
+ZLIB_1.2.3.4 { global: inflateReset2; } ZLIB_1.2.2.3;
+ZLIB_1.2.9 { global: inflateValidate; } ZLIB_1.2.3.4;

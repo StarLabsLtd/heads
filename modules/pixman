@@ -7,19 +7,37 @@ pixman_url := https://www.cairographics.org/releases/$(pixman_tar)
 pixman_hash := 21b6b249b51c6800dc9553b65106e1e37d0e25df942c90531d4c3997aa20a88e
 
 pixman_configure := \
+	test ! -f Makefile || $(MAKE) clean \
+	&& \
 	$(CROSS_TOOLS) \
-	CFLAGS="-Os"  \
+	CFLAGS="-Os -ffunction-sections -fdata-sections" \
+	LDFLAGS="-Wl,--gc-sections" \
 	./configure \
 	--host $(MUSL_ARCH)-elf-linux \
 	--prefix="/" \
-	--disable-gtk
+	--disable-gtk \
+	--disable-loongson-mmi \
+	--disable-mips-dspr2 \
+	--disable-mmx \
+	--disable-sse2 \
+	--disable-ssse3 \
+	--disable-vmx \
+	--disable-arm-simd \
+	--disable-arm-neon \
+	--disable-arm-iwmmxt \
+	&& sed -i 's/^SUBDIRS = pixman demos test/SUBDIRS = pixman/' \
+		"$(build)/$(pixman_dir)/Makefile" \
+	&& grep -qx 'SUBDIRS = pixman' "$(build)/$(pixman_dir)/Makefile"
 
 pixman_target := \
 	$(MAKE_JOBS) \
 	$(CROSS_TOOLS) \
+	LDFLAGS="-Wl,--gc-sections -Wl,--version-script=$(pwd)/config/runtime-symbols/pixman.map" \
 	DESTDIR="$(INSTALL)" \
 	install \
 
 pixman_libraries := pixman/.libs/libpixman-1.so.0
 
 pixman_depends := libpng $(musl_dep)
+
+$(build)/$(pixman_dir)/.configured: $(pwd)/config/runtime-symbols/pixman.map
