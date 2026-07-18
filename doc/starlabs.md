@@ -1,8 +1,9 @@
 # Star Labs boards
 
 This layer builds Heads for the 17 physical Star Labs coreboot release
-configurations current in release 26.07. StarBook MTL is the proof board and
-`starlabs_qemu` is the software gate.
+configurations current in release 26.07. `starlabs_qemu` is the software gate.
+The exact StarBook MTL result awaits physical observation; local Lite ADL is
+the next first-boot target for unproven firmware.
 
 ## Pinned sources
 
@@ -153,7 +154,7 @@ For StarBook MTL the full image is `0x2000000` bytes. Its release layout is:
 | `starlabs_byte_twl` | TWL/ADL, 16 MiB | `0x92f000` | Build passes |
 | `starlabs_labtop_cml` | CML, 16 MiB | `0xb2fe00` | Build passes |
 | `starlabs_labtop_kbl` | KBL, 8 MiB | `0x54fe00` | Current payload is 2,744,604 bytes over the largest CBFS slot; staged payload required |
-| `starlabs_lite_adl` | ADL, 16 MiB | `0x92f000` | Build passes |
+| `starlabs_lite_adl` | ADL, 16 MiB | `0x92f000` | Build/layout pass; signed normal-path candidate passes offline validation |
 | `starlabs_lite_glk` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Current payload is 5,594,396 bytes over the largest CBFS slot; packed signed stage0 fits; signed IFWI also required |
 | `starlabs_lite_glkr` | GLK signed IFWI, 8 MiB | `0x1ffe00` | Current payload is 5,591,580 bytes over the largest CBFS slot; packed signed stage0 fits; signed IFWI also required |
 | `starlabs_starbook_adl` | ADL, 32 MiB | `0xf2f000` | Build passes |
@@ -201,9 +202,9 @@ The first StarBook MTL attempt used signed FMP 26.09 capsule SHA-256
 `d1b029ff3e27c9379d4b33c0330840e610dde9f7f43aeb5abf0517f390b83c75`
 from source `d5c9e993be1518d48820d4dc7adc65e45640702c`. Only `COREBOOT` differed
 from the fresh live 26.07 image. After the single update reboot, TCP/22 stayed
-closed for all 30 bounded checks. The unit is recorded as bricked/unreturned
-under the test policy; physical observation must first determine whether it is
-waiting at the interactive Heads UI. No remote retry is permitted meanwhile.
+closed for all 30 bounded checks. This exact result is preserved pending
+physical display and keyboard observation: the unit may be waiting at the
+interactive Heads UI. No remote retry is permitted meanwhile.
 
 Record all of these before marking StarBook MTL proven:
 
@@ -216,12 +217,24 @@ Record all of these before marking StarBook MTL proven:
 - Full flash read reporting and `flashprog --wp-status` output; any write test
   remains constrained to FMAP `COREBOOT`.
 
+Lite ADL is the next first-boot target after its current EC IFU/security owner
+releases it. Source `47ab6471c12e05c272eb69f6dec2e5e7af4c87cc` produces a
+16 MiB ROM with SHA-256
+`a387c83b98881dc00a0863465073a365c7f5311ad604118241344aeae8181f0d`.
+Its FMAP/IFD audit passes and `COREBOOT` is the only region named by the RMAP.
+The validation FMP advertises Lite ADL GUID
+`975cd0e6-c540-4e2b-906c-72c0d0d1e40d`, version 26.09, and LSV 26.07; its
+decoded payload is byte-identical to the RMAP input and its PKCS#7 signature
+verifies against the Star Labs capsule chain. Do not contact or stage it while
+another lane holds the unit. No other remote board substitutes for this proof.
+
 ## Representative hardware matrix
 
-The smallest defensible set is six systems:
+The smallest defensible set is seven systems:
 
 | Board | Coverage added |
 | --- | --- |
+| Lite ADL | First local/recovery-backed risk target, ADL/IOT FSP, PTT, ITE EC, eDP and keyboard/touch input |
 | StarBook MTL | MTL, 32 MiB/14 MiB BIOS layout, discrete TPM2, ITE EC, eDP and PS/2 input |
 | StarBook Cezanne | AMD PSP/APCB/fTPM, AMD display initialization, 16 MiB single-region layout |
 | Lite GLKR | Gemini Lake signed IFWI, Nuvoton EC, tablet input/display, smallest ROM layout |
@@ -229,9 +242,10 @@ The smallest defensible set is six systems:
 | Byte TWL | Headless/mini-PC path, USB keyboard, external HDMI display, PTT/CRB TPM |
 | StarFighter RPL | 32 MiB/16 MiB BIOS layout and distinct StarFighter input/display platform |
 
-Do not allocate the five additional systems until StarBook MTL is physically
-observed and the staged KBL/GLK architecture is integrated into a reviewable
-candidate.
+Do not flash another remote system while StarBook MTL awaits physical
+observation. Complete the Lite ADL first-boot proof next; retain GLK/GLKR for
+their later family/space-specific validation after the staged architecture is
+integrated into a reviewable candidate.
 
 The two Cezanne targets now fit without removing verified boot, TPM2, display,
 USB recovery, or kexec functionality. StarBook Cezanne remains unchanged as
