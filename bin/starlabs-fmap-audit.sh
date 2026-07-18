@@ -43,6 +43,12 @@ done
 command -v "$CBFSTOOL" >/dev/null 2>&1 || { echo "cbfstool not found: $CBFSTOOL" >&2; exit 1; }
 
 if [ -n "$REPORT" ]; then
+	rom_real=$(realpath "$ROM")
+	report_real=$(realpath -m "$REPORT")
+	if [ "$report_real" = "$rom_real" ] || { [ -e "$REPORT" ] && [ "$REPORT" -ef "$ROM" ]; }; then
+		echo "Report must not overwrite the audited ROM: $REPORT" >&2
+		exit 1
+	fi
 	mkdir -p "$(dirname "$REPORT")"
 	exec > >(tee "$REPORT")
 fi
