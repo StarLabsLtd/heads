@@ -5,6 +5,7 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 audit="$repo_root/bin/starlabs-fmap-audit.sh"
+merge="$repo_root/bin/starlabs-merge-coreboot.sh"
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -84,5 +85,23 @@ if FAKE_CBFSTOOL_LOG="$tool_log" "$audit" \
 	echo "Audit succeeded despite a failed report write" >&2
 	exit 1
 fi
+
+reference="$tmpdir/reference.rom"
+heads="$tmpdir/heads.rom"
+output_alias="$tmpdir/output.rom"
+printf 'reference' > "$reference"
+printf 'new heads' > "$heads"
+ln "$heads" "$output_alias"
+heads_hash=$(sha256sum "$heads")
+if "$merge" \
+	--reference "$reference" \
+	--heads "$heads" \
+	--output "$output_alias" \
+	--cbfstool "$fake_cbfstool" \
+	--force >/dev/null 2>&1; then
+	echo "Merge accepted an output hard-linked to an input" >&2
+	exit 1
+fi
+[ "$(sha256sum "$heads")" = "$heads_hash" ]
 
 echo "Star Labs FMAP helper tests passed"

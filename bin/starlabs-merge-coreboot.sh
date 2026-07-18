@@ -42,7 +42,9 @@ done
 reference_real=$(realpath "$REFERENCE")
 heads_real=$(realpath "$HEADS_ROM")
 output_real=$(realpath -m "$OUTPUT")
-if [ "$output_real" = "$reference_real" ] || [ "$output_real" = "$heads_real" ]; then
+if [ "$output_real" = "$reference_real" ] || [ "$output_real" = "$heads_real" ] ||
+	{ [ -e "$OUTPUT" ] &&
+		{ [ "$OUTPUT" -ef "$REFERENCE" ] || [ "$OUTPUT" -ef "$HEADS_ROM" ]; }; }; then
 	echo "Output must not overwrite either input: $OUTPUT" >&2
 	exit 1
 fi
