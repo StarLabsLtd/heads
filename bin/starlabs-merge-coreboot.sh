@@ -60,7 +60,7 @@ if [ "$reference_size" -ne "$heads_size" ]; then
 fi
 
 layout_tuple() {
-	$CBFSTOOL "$1" layout -w | awk -F'[ (),]+' '
+	"$CBFSTOOL" "$1" layout -w | awk -F'[ (),]+' '
 		/^'"'"'COREBOOT'"'"'/ {
 			for (i = 1; i <= NF; i++) {
 				if ($i == "size") size = $(i + 1)
@@ -72,7 +72,7 @@ layout_tuple() {
 }
 
 layout_regions() {
-	$CBFSTOOL "$1" layout -w | sed -n "/^'/p"
+	"$CBFSTOOL" "$1" layout -w | sed -n "/^'/p"
 }
 
 reference_regions=$(layout_regions "$REFERENCE")
@@ -101,10 +101,10 @@ trap 'rm -rf "$tmpdir"' EXIT
 coreboot_image="$tmpdir/COREBOOT.bin"
 verified_image="$tmpdir/COREBOOT.verified.bin"
 
-$CBFSTOOL "$HEADS_ROM" read -r COREBOOT -f "$coreboot_image" >/dev/null
+"$CBFSTOOL" "$HEADS_ROM" read -r COREBOOT -f "$coreboot_image" >/dev/null
 cp "$REFERENCE" "$OUTPUT"
-$CBFSTOOL "$OUTPUT" write -F -r COREBOOT -f "$coreboot_image" >/dev/null
-$CBFSTOOL "$OUTPUT" read -r COREBOOT -f "$verified_image" >/dev/null
+"$CBFSTOOL" "$OUTPUT" write -F -r COREBOOT -f "$coreboot_image" >/dev/null
+"$CBFSTOOL" "$OUTPUT" read -r COREBOOT -f "$verified_image" >/dev/null
 cmp "$coreboot_image" "$verified_image"
 
 # Verify the immutable prefix and suffix independently. COREBOOT is normally

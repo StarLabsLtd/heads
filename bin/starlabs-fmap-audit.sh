@@ -50,7 +50,6 @@ if [ -n "$REPORT" ]; then
 		exit 1
 	fi
 	mkdir -p "$(dirname "$REPORT")"
-	exec > >(tee "$REPORT")
 fi
 
 rom_size=$(stat -c '%s' "$ROM")
@@ -62,27 +61,39 @@ fi
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-echo "ROM: $ROM"
-echo "SIZE: $rom_size"
-printf 'SHA256: '
-sha256sum "$ROM" | awk '{print $1}'
-echo
-echo "FMAP layout:"
-layout=$($CBFSTOOL "$ROM" layout -w)
-printf '%s\n' "$layout"
+audit() {
+	local layout region region_file
+	local region_index=0
 
-echo
-echo "FMAP region SHA256:"
-while IFS= read -r region; do
-	region_file="$tmpdir/$region.bin"
-	$CBFSTOOL "$ROM" read -r "$region" -f "$region_file" >/dev/null
-	printf '%-20s %10s  ' "$region" "$(stat -c '%s' "$region_file")"
-	sha256sum "$region_file" | awk '{print $1}'
-done < <(printf '%s\n' "$layout" | sed -n "s/^'\([^']*\)'.*/\1/p")
-
-if [ -n "$IFD_PLATFORM" ]; then
-	command -v "$IFDTOOL" >/dev/null 2>&1 || { echo "ifdtool not found: $IFDTOOL" >&2; exit 1; }
+	echo "ROM: $ROM"
+	echo "SIZE: $rom_size"
+	printf 'SHA256: '
+	sha256sum "$ROM" | awk '{print $1}'
 	echo
-	echo "Intel flash descriptor ($IFD_PLATFORM):"
-	$IFDTOOL --platform "$IFD_PLATFORM" --dump "$ROM"
+	echo "FMAP layout:"
+	layout=$("$CBFSTOOL" "$ROM" layout -w)
+	printf '%s\n' "$layout"
+
+	echo
+	echo "FMAP region SHA256:"
+	while IFS= read -r region; do
+		region_file=$(printf '%s/region-%04d.bin' "$tmpdir" "$region_index")
+		region_index=$((region_index + 1))
+		"$CBFSTOOL" "$ROM" read -r "$region" -f "$region_file" >/dev/null
+		printf '%-20s %10s  ' "$region" "$(stat -c '%s' "$region_file")"
+		sha256sum "$region_file" | awk '{print $1}'
+	done < <(printf '%s\n' "$layout" | sed -n "s/^'\([^']*\)'.*/\1/p")
+
+	if [ -n "$IFD_PLATFORM" ]; then
+		command -v "$IFDTOOL" >/dev/null 2>&1 || { echo "ifdtool not found: $IFDTOOL" >&2; return 1; }
+		echo
+		echo "Intel flash descriptor ($IFD_PLATFORM):"
+		"$IFDTOOL" --platform "$IFD_PLATFORM" --dump "$ROM"
+	fi
+}
+
+if [ -n "$REPORT" ]; then
+	audit | tee "$REPORT"
+else
+	audit
 fi
