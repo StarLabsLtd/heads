@@ -61,7 +61,14 @@ flash_rom() {
     WARN "Do not power off computer.  Updating firmware, this will take a few minutes"
     STATUS "Flashing ROM to chip"
     $CONFIG_FLASH_OPTIONS -w /tmp/${CONFIG_BOARD}.rom 2>&1 \
-      || recovery "$ROM: Flash failed"
+      || { recovery "$ROM: Flash failed"; return 1; }
+
+    if [ "${CONFIG_CBFS_VIA_FLASHPROG:-n}" = "y" ]; then
+      # A second update in this boot must preserve from the image that was
+      # just verified and written, not the boot-time flash snapshot.
+      cp /tmp/${CONFIG_BOARD}.rom /tmp/cbfs-init.rom.new
+      mv /tmp/cbfs-init.rom.new /tmp/cbfs-init.rom
+    fi
     STATUS_OK "ROM flashed successfully"
   fi
 }

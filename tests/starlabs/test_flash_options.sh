@@ -24,6 +24,12 @@ recovery() {
 	echo "Unexpected recovery: $*" >&2
 	return 1
 }
+STATUS() { :; }
+STATUS_OK() { :; }
+DEBUG() { :; }
+WARN() { :; }
+sha256sum() { :; }
+cbfs.sh() { return 1; }
 
 READ=1
 CONFIG_FLASH_OPTIONS='write_tool --write-policy'
@@ -34,6 +40,27 @@ grep -Fx -- "--read-policy -r $tmpdir/rom" "$tmpdir/invocation" >/dev/null
 unset CONFIG_FLASH_READ_OPTIONS
 flash_rom "$tmpdir/rom"
 grep -Fx -- "--write-policy -r $tmpdir/rom" "$tmpdir/invocation" >/dev/null
+
+printf 'candidate\n' > "$tmpdir/update.rom"
+printf 'old snapshot\n' > /tmp/cbfs-init.rom
+CONFIG_BOARD=starlabs_test
+CONFIG_CBFS_VIA_FLASHPROG=y
+CONFIG_FLASH_OPTIONS=write_tool
+CLEAN=1
+READ=0
+flash_rom "$tmpdir/update.rom"
+cmp -s "$tmpdir/update.rom" /tmp/cbfs-init.rom
+
+write_tool() {
+	return 1
+}
+printf 'failed candidate\n' > "$tmpdir/update.rom"
+if flash_rom "$tmpdir/update.rom" 2>/dev/null; then
+	echo "Failed flash unexpectedly succeeded" >&2
+	exit 1
+fi
+printf 'candidate\n' | cmp -s - /tmp/cbfs-init.rom
+rm -f /tmp/cbfs-init.rom /tmp/cbfs-init.rom.new /tmp/starlabs_test.rom
 
 grep -Fx \
 	'export CONFIG_FLASH_OPTIONS="flashprog --progress --programmer internal --fmap -i COREBOOT"' \
