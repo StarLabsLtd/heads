@@ -21,11 +21,21 @@ esac
 flash_rom() {
   ROM=$1
   if [ "$READ" -eq 1 ]; then
-    $CONFIG_FLASH_OPTIONS -r "${ROM}" \
+    # ROM-hole boards need the separate FMAP bytes for cbfs.sh to locate and
+    # edit COREBOOT. Their write policy remains constrained to COREBOOT.
+    FLASH_READ_OPTIONS=${CONFIG_FLASH_READ_OPTIONS:-$CONFIG_FLASH_OPTIONS}
+    $FLASH_READ_OPTIONS -r "${ROM}" \
     || recovery "Backup to $ROM failed"
-  else
-    STATUS "Preparing new ROM image for flashing"
-    cp "$ROM" /tmp/${CONFIG_BOARD}.rom
+	else
+		STATUS "Preparing new ROM image for flashing"
+		if [ "${CONFIG_CBFS_VIA_FLASHPROG:-n}" = "y" ]; then
+			STATUS "Reading current SPI flash for preservation"
+			CBFS_CURRENT_ROM=/tmp/cbfs-update.rom
+			$CONFIG_FLASH_OPTIONS -r "$CBFS_CURRENT_ROM" \
+				|| recovery "Read of current flash has failed"
+			export CBFS_CURRENT_ROM
+		fi
+		cp "$ROM" /tmp/"${CONFIG_BOARD}".rom
     STATUS "Verifying SHA-256 checksum of ROM image"
     sha256sum /tmp/${CONFIG_BOARD}.rom
     if [ "$CLEAN" -eq 0 ]; then
@@ -40,12 +50,31 @@ flash_rom() {
     else
       DEBUG "flash_rom: CLEAN=$CLEAN — skipping config preservation (clean flash)"
     fi
-    # persist serial number from CBFS
-    if cbfs.sh -r serial_number > /tmp/serial 2>/dev/null; then
-      STATUS "Persisting system serial"
-      cbfs.sh -o /tmp/${CONFIG_BOARD}.rom -d serial_number 2>/dev/null || true
-      cbfs.sh -o /tmp/${CONFIG_BOARD}.rom -a serial_number -f /tmp/serial
-    fi
+	# Persist serial_number from the same current-ROM snapshot used above.
+	serial_present=1
+	if [ "${CONFIG_CBFS_VIA_FLASHPROG:-n}" = "y" ]; then
+		if ! cbfs.sh -o "$CBFS_CURRENT_ROM" -l >/tmp/cbfs-serial-list 2>/dev/null; then
+			recovery "$ROM: Failed to list current CBFS for serial preservation"
+			return 1
+		fi
+		grep -Fx serial_number /tmp/cbfs-serial-list >/dev/null || serial_present=0
+	fi
+	read_serial() {
+		if [ "${CONFIG_CBFS_VIA_FLASHPROG:-n}" = "y" ]; then
+			cbfs.sh -o "$CBFS_CURRENT_ROM" -r serial_number
+		else
+			cbfs.sh -r serial_number
+		fi
+	}
+	if [ "$serial_present" -eq 1 ] && read_serial >/tmp/serial 2>/dev/null; then
+		STATUS "Persisting system serial"
+		cbfs.sh -o /tmp/"${CONFIG_BOARD}".rom -d serial_number \
+			|| recovery "$ROM: Failed to replace serial number"
+		cbfs.sh -o /tmp/"${CONFIG_BOARD}".rom -a serial_number -f /tmp/serial \
+			|| recovery "$ROM: Failed to preserve serial number"
+	elif [ "$serial_present" -eq 1 ]; then
+		recovery "$ROM: Failed to read serial number from current flash"
+	fi
     # persist PCHSTRP9 from flash descriptor
     if [ "$CONFIG_BOARD" = "librem_l1um" ]; then
       STATUS "Persisting PCHSTRP9"
@@ -58,7 +87,14 @@ flash_rom() {
     WARN "Do not power off computer.  Updating firmware, this will take a few minutes"
     STATUS "Flashing ROM to chip"
     $CONFIG_FLASH_OPTIONS -w /tmp/${CONFIG_BOARD}.rom 2>&1 \
-      || recovery "$ROM: Flash failed"
+      || { recovery "$ROM: Flash failed"; return 1; }
+
+    if [ "${CONFIG_CBFS_VIA_FLASHPROG:-n}" = "y" ]; then
+      # A second update in this boot must preserve from the image that was
+      # just verified and written, not the boot-time flash snapshot.
+      cp /tmp/${CONFIG_BOARD}.rom /tmp/cbfs-init.rom.new
+      mv /tmp/cbfs-init.rom.new /tmp/cbfs-init.rom
+    fi
     STATUS_OK "ROM flashed successfully"
   fi
 }

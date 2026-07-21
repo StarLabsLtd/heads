@@ -183,6 +183,13 @@ coreboot-25.09_repo := https://github.com/coreboot/coreboot
 coreboot-25.09_commit_hash := 07df08836eca9dd755cc32b6d78727760d201605
 $(eval $(call coreboot_module,25.09,))
 
+# Star Labs release 26.07.1. Board firmware and vendor data remain in the
+# Star Labs coreboot fork and its pinned submodules; Heads does not carry
+# copies of those blobs.
+coreboot-starlabs_2607_repo := https://github.com/StarLabsLtd/coreboot.git
+coreboot-starlabs_2607_commit_hash := 3531cde8002a9afff8ad4c272b2c4ea015f45012
+$(eval $(call coreboot_module,starlabs_2607,))
+
 # Check that the board configured the coreboot version correctly
 ifeq "$(CONFIG_COREBOOT_VERSION)" ""
 	$(error "$(BOARD): does not specify coreboot version under CONFIG_COREBOOT_VERSION")
@@ -246,6 +253,7 @@ $(coreboot_module)_configure := \
 		-C "$(build)/$(coreboot_base_dir)" \
 		obj="$(build)/$(coreboot_dir)" \
 		DOTCONFIG="$(build)/$(coreboot_dir)/.config" \
+		XGCCPATH="$(build)/$($(coreboot_toolchain_module)_base_dir)/util/crossgcc/xgcc/bin/" \
 		BUILD_TIMELESS=1; \
 	echo ""; \
 	echo "Validating CONFIG_CBFS_SIZE vs IFD BIOS region..."; \

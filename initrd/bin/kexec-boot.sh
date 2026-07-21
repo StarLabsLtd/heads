@@ -214,7 +214,9 @@ fi
 
 if [ "$CONFIG_BRAND_NAME" = "Heads" ]; then
 	STATUS_OK "Heads firmware job done - handing off to your OS. Consider donating: https://opencollective.com/insurgo"
-	qrenc "https://opencollective.com/insurgo"
+	if [ -x /bin/qrenc ]; then
+		qrenc "https://opencollective.com/insurgo"
+	fi
 else
 	STATUS_OK "$CONFIG_BRAND_NAME firmware job done - starting your OS"
 fi

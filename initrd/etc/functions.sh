@@ -485,12 +485,33 @@ preserve_rom() {
 	#
 	# Called from: flash.sh (when CLEAN=0, i.e. non-factory-flash).
 	# Controlled by: CLEAN flag (set to 1 for factory/OEM flashes to skip).
-	#   No CONFIG_* setting directly controls this — flash.sh sets CLEAN
-	#   based on the --clean / -c flag passed by the user or calling script.
+	#   flash.sh sets CLEAN based on the --clean / -c flag passed by the user
+	#   or calling script. CONFIG_CBFS_VIA_FLASHPROG selects the current-ROM
+	#   read path on boards where direct CBFS access cannot cross a ROM hole.
 	# Files preserved: all CBFS type-50 entries under the 'heads/' prefix.
 	new_rom="$1"
-	old_files=$(cbfs -t 50 -l 2>/dev/null | grep "^heads/")
-	old_file_count=$(echo "$old_files" | wc -w)
+	cbfs_listing="/tmp/cbfs-list.$$"
+	current_cbfs_rom="${CBFS_CURRENT_ROM:-/tmp/cbfs-init.rom}"
+	if [ "$CONFIG_CBFS_VIA_FLASHPROG" = "y" ]; then
+		if [ ! -s "$current_cbfs_rom" ]; then
+			DIE "preserve_rom: current firmware readback is unavailable"
+			return 1
+		fi
+		if ! cbfs -t 50 -o "$current_cbfs_rom" -l >"$cbfs_listing" 2>/dev/null; then
+			rm -f "$cbfs_listing"
+			DIE "preserve_rom: failed to list current firmware CBFS"
+			return 1
+		fi
+	else
+		if ! cbfs -t 50 -l >"$cbfs_listing" 2>/dev/null; then
+			rm -f "$cbfs_listing"
+			DIE "preserve_rom: failed to list current firmware CBFS"
+			return 1
+		fi
+	fi
+	old_files=$(sed -n 's/^\(heads\/[^[:space:]]*\)$/\1/p' "$cbfs_listing")
+	rm -f "$cbfs_listing"
+	old_file_count=$(printf '%s\n' "$old_files" | wc -w)
 
 	if [ "$old_file_count" -eq 0 ]; then
 		DEBUG "preserve_rom: no 'heads/' CBFS files to preserve in current ROM"
@@ -498,22 +519,42 @@ preserve_rom() {
 		return 0
 	fi
 
-	STATUS "Preserving configuration overrides and key material from current firmware: $(echo $old_files)"
+	STATUS "Preserving configuration overrides and key material from current firmware: $old_files"
 	DEBUG "preserve_rom: scanning $new_rom for existing heads/* entries to skip"
 
-	for old_file in $(echo $old_files); do
-		new_file=$(cbfs.sh -o $1 -l | grep -Fx "$old_file")
+	new_listing="/tmp/cbfs-new-list.$$"
+	if ! cbfs.sh -o "$new_rom" -l >"$new_listing" 2>/dev/null; then
+		rm -f "$new_listing"
+		DIE "preserve_rom: failed to list new firmware CBFS"
+		return 1
+	fi
+	while IFS= read -r old_file; do
+		[ -n "$old_file" ] || continue
+		new_file=$(grep -Fx "$old_file" "$new_listing" || true)
 		if [ -z "$new_file" ]; then
 			DEBUG "preserve_rom: $old_file not found in new ROM — copying from current CBFS"
-			cbfs -t 50 -r $old_file >/tmp/rom.$$ ||
-				DIE "preserve_rom: failed to read $old_file from current CBFS"
-			cbfs.sh -o $1 -a $old_file -f /tmp/rom.$$ ||
-				DIE "preserve_rom: failed to write $old_file to $1"
+			if [ "$CONFIG_CBFS_VIA_FLASHPROG" = "y" ]; then
+				if ! cbfs -t 50 -o "$current_cbfs_rom" -r "$old_file" >/tmp/rom.$$; then
+					DIE "preserve_rom: failed to read $old_file from current CBFS"
+					 rm -f "$new_listing" /tmp/rom.$$; return 1
+				fi
+			else
+				if ! cbfs -t 50 -r "$old_file" >/tmp/rom.$$; then
+					DIE "preserve_rom: failed to read $old_file from current CBFS"
+					 rm -f "$new_listing" /tmp/rom.$$; return 1
+				fi
+			fi
+			if ! cbfs.sh -o "$new_rom" -a "$old_file" -f /tmp/rom.$$; then
+				DIE "preserve_rom: failed to write $old_file to $new_rom"
+				rm -f "$new_listing" /tmp/rom.$$; return 1
+			fi
 		else
 			DEBUG "preserve_rom: $old_file already present in new ROM — skipped"
 		fi
-	done
-	rm -f /tmp/rom.$$
+	done <<EOF
+$old_files
+EOF
+	rm -f "$new_listing" /tmp/rom.$$
 	STATUS_OK "Configuration overrides and key material preserved in new firmware"
 }
 
@@ -3638,4 +3679,3 @@ _build_final_cmdline() {
 	DEBUG "_build_final_cmdline: final='$_combined'"
 	echo "$_combined"
 }
-

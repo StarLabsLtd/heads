@@ -144,6 +144,7 @@ Environment variables (opt-ins / opt-outs):
 	HEADS_MAINTAINER_DOCKER_IMAGE   Override the canonical maintainer's Docker image repository (default: tlaurion/heads-dev-env). Use for forks or local testing.
 	HEADS_CHECK_REPRODUCIBILITY_REMOTE  Override the remote image for reproducibility checks (default: ${HEADS_MAINTAINER_DOCKER_IMAGE}:latest). Example: tlaurion/heads-dev-env:v0.2.7
 	HEADS_DISABLE_USB=1   Disable automatic USB passthrough (default: enabled when /dev/bus/usb exists)
+	HEADS_DOCKER_READONLY_MOUNTS  Semicolon-separated SOURCE=TARGET bind mounts
 	HEADS_X11_XAUTH=1     Explicitly mount $HOME/.Xauthority into the container for X11 auth
 	HEADS_SKIP_DOCKER_REBUILD=1  Skip automatic rebuild of the local Docker image when flake.nix/flake.lock are uncommitted
 	HEADS_FORCE_DOCKER_REBUILD=1  Force rebuild from flake.nix/flake.lock regardless of git status
@@ -1025,6 +1026,32 @@ print_digest_info() {
 build_docker_opts() {
 	local opts=(-e "DISPLAY=${DISPLAY:-}" --network host --rm -ti)
 
+	# Optional, explicit read-only inputs for boards whose licensed firmware
+	# data cannot be distributed in Heads. Each entry is SOURCE=TARGET and
+	# entries are separated with semicolons.
+	if [ -n "${HEADS_DOCKER_READONLY_MOUNTS:-}" ]; then
+		local -a readonly_mounts
+		local mount source target
+		IFS=';' read -r -a readonly_mounts <<<"${HEADS_DOCKER_READONLY_MOUNTS}"
+		for mount in "${readonly_mounts[@]}"; do
+			case "$mount" in
+				*=*) ;;
+				*)
+					echo "Invalid HEADS_DOCKER_READONLY_MOUNTS entry: $mount" >&2
+					return 1
+					;;
+			esac
+			source=${mount%%=*}
+			target=${mount#*=}
+			if [ -z "$source" ] || [ -z "$target" ]; then
+				echo "Invalid HEADS_DOCKER_READONLY_MOUNTS entry: $mount" >&2
+				return 1
+			fi
+			opts+=(--mount "type=bind,src=${source},dst=${target},readonly")
+			echo "--->Read-only input mount: ${source} -> ${target}" >&2
+		done
+	fi
+
 	# USB passthrough
 	if [ -d "/dev/bus/usb" ] && [ "${HEADS_DISABLE_USB:-0}" != "1" ]; then
 		opts+=(--device=/dev/bus/usb:/dev/bus/usb)
@@ -1420,9 +1447,11 @@ run_docker() {
 	shift
 	local opts host_workdir container_workdir DOCKER_OPTS_ARRAY
 	# Read docker options (one-per-line) into an array, preserving spaces within options
-	mapfile -t DOCKER_OPTS_ARRAY < <(build_docker_opts)
-	# Also create a single-string representation for legacy substring checks
-	opts=$(printf '%s\n' "${DOCKER_OPTS_ARRAY[@]}")
+	if ! opts=$(build_docker_opts); then
+		echo "Refusing to start Docker with invalid options" >&2
+		return 1
+	fi
+	mapfile -t DOCKER_OPTS_ARRAY <<<"$opts"
 	host_workdir="$(pwd)"
 	container_workdir="${host_workdir}"
 
