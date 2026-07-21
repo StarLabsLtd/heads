@@ -29,7 +29,12 @@ STATUS_OK() { :; }
 DEBUG() { :; }
 WARN() { :; }
 sha256sum() { :; }
-cbfs.sh() { return 1; }
+cbfs.sh() {
+	case " $* " in
+		*" -l "*) printf 'heads/initrd/etc/config.user\n' ;;
+		*) return 1 ;;
+	esac
+}
 
 READ=1
 CONFIG_FLASH_OPTIONS='write_tool --write-policy'
