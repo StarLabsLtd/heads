@@ -35,6 +35,45 @@ Please see boards/BOARD_NAME/BOARD_NAME.config for HCL details.
 
 As per tracking issue for board testers: https://github.com/linuxboot/heads/issues/692, currently built CircleCI boards ROMs are:
 
+## TPM GPIO Reset Vulnerability (upstream coreboot bug)
+
+Heads relies on coreboot for GPIO pad configuration. Many Intel platforms are
+affected by a coreboot bug where the PCH GPIO lock bits are not set before
+booting the OS, allowing an attacker with code execution to reset the discrete
+TPM without a physical reboot and forge PCR measurements.
+See [TPM GPIO fail (mkukri.xyz)](https://mkukri.xyz/2024/06/01/tpm-gpio-fail.html)
+and [doc/TPM_GPIO_Reset_Vulnerability.md](TPM_GPIO_Reset_Vulnerability.md) for details.
+
+Impact on Heads: TPM Disk Unlock Key with passphrase is **not affected**.
+TPMTOTP/HOTP remote attestation **is affected** (PCRs can be forged).
+The fix must come from coreboot. Tracked at [coreboot ticket #576](https://ticket.coreboot.org/issues/576)
+and [coreboot patch series](https://review.coreboot.org/q/topic:%22intel_gpio_lock%22).
+
+| Board group | SoC generation | Coreboot GPIO lock |
+|---|---|---|
+| xx20 (Sandy Bridge, 2nd Gen) | Legacy southbridge | No lock mechanism |
+| xx30 (Ivy Bridge, 3rd Gen) | Legacy southbridge | No lock mechanism |
+| xx4x / w541 (Haswell, 4th Gen) | Legacy southbridge | No lock mechanism |
+| xx8x / t480 / t480s (Kaby Lake, 8th Gen) | Skylake SoC code (25.09) | Not functional: no pad lock offsets, no Kconfig lock method selected |
+| Librem 13v2/15v3 (Skylake, 6th Gen) | Purism fork — check vendor | Unknown without vendor fork inspection |
+| Librem 13v4/15v4 (Kaby Lake, 7th Gen) | Purism fork — check vendor | Unknown without vendor fork inspection |
+| Librem 14 (Comet Lake, 10th Gen) | Purism fork — check vendor | Unknown without vendor fork inspection |
+| Librem 11 (Jasper Lake, Atom) | Purism fork — check vendor | Unknown without vendor fork inspection |
+| Librem L1UM v1 (Broadwell, 5th Gen) | Legacy southbridge | No lock mechanism |
+| Librem L1UM v2 (Coffee Lake, 9th Gen) | Purism fork — check vendor | Unknown without vendor fork inspection |
+| Librem mini v1 (Whiskey Lake, 8th Gen) | Purism fork — check vendor | Unknown without vendor fork inspection |
+| Librem mini v2 (Comet Lake, 10th Gen) | Purism fork — check vendor | Unknown without vendor fork inspection |
+| Optiplex 7010/9010 (Ivy Bridge, 3rd Gen) | Legacy southbridge | No lock mechanism |
+| HP Z220 CMT (Ivy Bridge, 3rd Gen) | Legacy southbridge | No lock mechanism |
+| Clevo NS50 / NV4x (Alder Lake, 12th Gen) | Dasharo fork — check vendor | Alder Lake has lock in upstream; Dasharo fork status unknown |
+| Clevo v540tu/v560tu (Meteor Lake) | Dasharo fork — check vendor | Meteor Lake has lock in upstream; Dasharo fork status unknown |
+| MSI Z690-A/Z790-P (Alder/Raptor Lake) | Dasharo fork — check vendor | Alder Lake has lock in upstream; Dasharo fork status unknown |
+| KGPE-D16 (AMD) | Not Intel | Not affected |
+| Talos II (Power9) | Not Intel | Not affected |
+
+Note: Dasharo and Purism coreboot forks may differ from upstream. Board owners
+should verify GPIO lock status with the vendor.
+
 Laptops
 ==
 
